@@ -12,8 +12,8 @@ fn read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_triple_key::MapxTkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxTkVs::new();
@@ -39,8 +39,8 @@ fn random_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_triple_key::MapxTkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
@@ -68,8 +68,8 @@ fn version_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_triple_key::MapxTkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxTkVs::new();
@@ -100,8 +100,8 @@ fn version_random_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_triple_key::MapxTkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
@@ -136,8 +136,8 @@ fn branch_version_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_triple_key::MapxTkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxTkVs::new();
@@ -167,8 +167,8 @@ fn branch_version_random_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_triple_key::MapxTkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();

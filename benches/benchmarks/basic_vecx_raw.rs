@@ -9,8 +9,8 @@ use vsdb::{basic::vecx_raw::VecxRaw, ValueEnDe};
 fn read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::basic::vecx_raw::VecxRaw **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = VecxRaw::new();
@@ -35,8 +35,8 @@ fn read_write(c: &mut Criterion) {
 fn random_read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::basic::vecx_raw::VecxRaw **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut rng = rand::thread_rng();
     let db = VecxRaw::new();

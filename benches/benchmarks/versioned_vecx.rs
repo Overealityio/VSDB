@@ -6,8 +6,8 @@ use vsdb::{versioned::vecx::VecxVs, VersionName, VsMgmt};
 fn read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::versioned::vecx::VecxVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut rng = rand::thread_rng();
     let db = VecxVs::new();

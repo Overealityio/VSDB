@@ -12,8 +12,8 @@ fn read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_raw::MapxRawMkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxRawMkVs::new(2);
@@ -41,8 +41,8 @@ fn random_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_raw::MapxRawMkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
@@ -72,8 +72,8 @@ fn version_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_raw::MapxRawMkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxRawMkVs::new(2);
@@ -106,8 +106,8 @@ fn version_random_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_raw::MapxRawMkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
@@ -143,8 +143,8 @@ fn branch_version_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_raw::MapxRawMkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxRawMkVs::new(2);
@@ -176,8 +176,8 @@ fn branch_version_random_read_write(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("** vsdb::versioned_multi_key::mapx_raw::MapxRawMkVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();

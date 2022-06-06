@@ -9,8 +9,8 @@ use vsdb::{versioned::mapx_ord::MapxOrdVs, VersionName, VsMgmt};
 fn read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::versioned::mapx_ord::MapxOrdVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxOrdVs::new();
@@ -36,8 +36,8 @@ fn read_write(c: &mut Criterion) {
 fn random_read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::versioned::mapx_ord::MapxOrdVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
@@ -64,8 +64,8 @@ fn random_read_write(c: &mut Criterion) {
 fn version_read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::versioned::mapx_ord::MapxOrdVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxOrdVs::new();
@@ -94,8 +94,8 @@ fn version_read_write(c: &mut Criterion) {
 fn version_random_read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::versioned::mapx_ord::MapxOrdVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
@@ -122,8 +122,8 @@ fn version_random_read_write(c: &mut Criterion) {
 fn branch_version_read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::versioned::mapx_ord::MapxOrdVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let i = AtomicUsize::new(0);
     let db = MapxOrdVs::new();
@@ -149,8 +149,8 @@ fn branch_version_read_write(c: &mut Criterion) {
 fn branch_version_random_read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("** vsdb::versioned::mapx_ord::MapxOrdVs **");
     group
-        .measurement_time(Duration::from_secs(90))
-        .sample_size(1000);
+        .measurement_time(Duration::from_secs(9))
+        .sample_size(100);
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
