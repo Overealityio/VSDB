@@ -1,5 +1,12 @@
 # Change log
 
+## v0.38.0
+
+#### Internal optimizations
+
+- Add an additional cache layer uppon the backend DB-engine
+  - NOTE: `rocks_engine` only
+
 ## v0.37.2
 
 #### Metainfo changes
