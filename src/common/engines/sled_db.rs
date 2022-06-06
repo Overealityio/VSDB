@@ -136,6 +136,13 @@ impl Engine for SledEngine {
         });
     }
 
+    // flush cache every N seconds
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn flush_cache(&self) {
+        // TODO
+    }
+
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> SledIter {
         SledIter {
             inner: self.areas[area_idx].scan_prefix(meta_prefix.as_slice()),

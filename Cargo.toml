@@ -1,6 +1,6 @@
 [package]
 name = "vsdb"
-version = "0.37.2"
+version = "0.38.0"
 authors = ["mlm"]
 edition = "2021"
 description = "A stuctured DB with some 'Git-like' features, originally designed for blockchain scene."
@@ -15,6 +15,7 @@ ruc = "1.0.7"
 once_cell = "1.10.0"
 serde = { version = "1.0.136", features = ["derive"] }
 parking_lot = "0.12.0"
+ahash = "0.7.6"
 
 primitive-types-0-11 = { package = "primitive-types", version = "0.11", default-features = false }
 primitive-types-0-10 = { package = "primitive-types", version = "0.10", default-features = false }

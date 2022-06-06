@@ -2,17 +2,21 @@ use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawBytes,
     RawKey, RawValue, VersionID, INITIAL_BRANCH_ID, MB, PREFIX_SIZ, RESERVED_ID_CNT,
 };
+use ahash::AHashMap;
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use rocksdb::{
     ColumnFamily, ColumnFamilyDescriptor, DBCompressionType, DBIterator, Direction,
-    IteratorMode, Options, ReadOptions, SliceTransform, DB,
+    IteratorMode, Options, ReadOptions, SliceTransform, WriteBatch, DB,
 };
 use ruc::*;
 use std::{
-    mem::size_of,
+    mem::{self, size_of},
     ops::{Bound, RangeBounds},
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     thread::available_parallelism,
 };
 
@@ -30,9 +34,36 @@ pub(crate) struct RocksEngine {
     areas: Vec<&'static str>,
     prefix_allocator: PreAllocator,
     max_keylen: AtomicUsize,
+    cache: Cache,
 }
 
 impl RocksEngine {
+    #[inline(always)]
+    fn get_by_raw_key(&self, area_idx: usize, raw_key: Vec<u8>) -> Option<RawValue> {
+        let kk = (raw_key, area_idx);
+
+        if let Some(v) = self.cache.header.read().get(&kk) {
+            if v.is_none() {
+                return None;
+            } else {
+                return v.clone().map(|v| v.into_boxed_slice());
+            }
+        }
+
+        if let Some(v) = self.cache.middle.read().get(&kk) {
+            if v.is_none() {
+                return None;
+            } else {
+                return v.clone().map(|v| v.into_boxed_slice());
+            }
+        }
+
+        self.meta
+            .get_cf(self.cf_hdr(area_idx), kk.0)
+            .unwrap()
+            .map(|v| v.into_boxed_slice())
+    }
+
     #[inline(always)]
     fn cf_hdr(&self, area_idx: usize) -> &ColumnFamily {
         self.meta.cf_handle(self.areas[area_idx]).unwrap()
@@ -65,6 +96,26 @@ impl RocksEngine {
         }
 
         max_guard
+    }
+
+    fn update_batch(
+        &self,
+        data: AHashMap<(Vec<u8>, usize), Option<Vec<u8>>>,
+    ) -> Result<()> {
+        let mut batch = WriteBatch::default();
+        for ((extended_key, area_idx), value) in data.into_iter() {
+            if let Some(v) = value {
+                if usize::MAX == area_idx {
+                    // update meta
+                    batch.put(extended_key, v);
+                } else {
+                    batch.put_cf(self.cf_hdr(area_idx), extended_key, v);
+                }
+            } else {
+                batch.delete_cf(self.cf_hdr(area_idx), extended_key);
+            }
+        }
+        self.meta.write(batch).c(d!())
     }
 }
 
@@ -102,13 +153,16 @@ impl Engine for RocksEngine {
             usize
         ));
 
-        Ok(RocksEngine {
+        let res = RocksEngine {
             meta,
             areas,
             prefix_allocator,
             // length of the raw key, exclude the meta prefix
             max_keylen,
-        })
+            cache: Cache::new(),
+        };
+
+        Ok(res)
     }
 
     // 'step 1' and 'step 2' is not atomic in multi-threads scene,
@@ -173,18 +227,43 @@ impl Engine for RocksEngine {
         ret
     }
 
+    #[inline(always)]
     fn area_count(&self) -> usize {
         DATA_SET_NUM
     }
 
+    #[inline(always)]
     fn flush(&self) {
+        self.flush_cache();
         self.meta.flush().unwrap();
         (0..DATA_SET_NUM).for_each(|i| {
             self.meta.flush_cf(self.cf_hdr(i)).unwrap();
         });
     }
 
+    // flush cache every N seconds
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn flush_cache(&self) {
+        static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+        let x = LK.lock();
+
+        let mut header = self.cache.header.write();
+        let mut middle = self.cache.middle.write();
+
+        let latest_data = mem::take(&mut *header);
+        *middle = latest_data.clone();
+
+        drop(header);
+        drop(middle);
+
+        pnk!(self.update_batch(latest_data));
+    }
+
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> RocksIter {
+        // flush cache first?
+        self.flush_cache();
+
         let inner = self
             .meta
             .prefix_iterator_cf(self.cf_hdr(area_idx), meta_prefix);
@@ -210,6 +289,9 @@ impl Engine for RocksEngine {
         meta_prefix: PreBytes,
         bounds: R,
     ) -> RocksIter {
+        // flush cache first?
+        self.flush_cache();
+
         let mut opt = ReadOptions::default();
         let mut opt_rev = ReadOptions::default();
 
@@ -267,6 +349,7 @@ impl Engine for RocksEngine {
         RocksIter { inner, inner_rev }
     }
 
+    #[inline(always)]
     fn get(
         &self,
         area_idx: usize,
@@ -275,10 +358,8 @@ impl Engine for RocksEngine {
     ) -> Option<RawValue> {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
-        self.meta
-            .get_cf(self.cf_hdr(area_idx), k)
-            .unwrap()
-            .map(|v| v.into_boxed_slice())
+
+        self.get_by_raw_key(area_idx, k)
     }
 
     fn insert(
@@ -295,11 +376,17 @@ impl Engine for RocksEngine {
             self.set_max_key_len(key.len());
         }
 
-        let old_v = self.meta.get_cf(self.cf_hdr(area_idx), &k).unwrap();
-        self.meta.put_cf(self.cf_hdr(area_idx), k, value).unwrap();
-        old_v.map(|v| v.into_boxed_slice())
+        let old_v = self.get_by_raw_key(area_idx, k.clone());
+
+        self.cache
+            .header
+            .write()
+            .insert((k, area_idx), Some(value.to_vec()));
+
+        old_v
     }
 
+    #[inline(always)]
     fn remove(
         &self,
         area_idx: usize,
@@ -308,19 +395,35 @@ impl Engine for RocksEngine {
     ) -> Option<RawValue> {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
-        let old_v = self.meta.get_cf(self.cf_hdr(area_idx), &k).unwrap();
-        self.meta.delete_cf(self.cf_hdr(area_idx), k).unwrap();
-        old_v.map(|v| v.into_boxed_slice())
+
+        let old_v = self.get_by_raw_key(area_idx, k.clone());
+
+        self.cache.header.write().insert((k, area_idx), None);
+
+        old_v
     }
 
+    #[inline(always)]
     fn get_instance_len(&self, instance_prefix: PreBytes) -> u64 {
+        let kk = (instance_prefix.to_vec(), usize::MAX);
+
+        if let Some(v) = self.cache.header.read().get(&kk) {
+            return crate::parse_int!(v.as_ref().unwrap(), u64);
+        }
+
+        if let Some(v) = self.cache.middle.read().get(&kk) {
+            return crate::parse_int!(v.as_ref().unwrap(), u64);
+        }
+
         crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
     }
 
+    #[inline(always)]
     fn set_instance_len(&self, instance_prefix: PreBytes, new_len: u64) {
-        self.meta
-            .put(instance_prefix, new_len.to_be_bytes())
-            .unwrap();
+        self.cache.header.write().insert(
+            (instance_prefix.to_vec(), usize::MAX),
+            Some(new_len.to_be_bytes().to_vec()),
+        );
     }
 }
 
@@ -372,6 +475,25 @@ impl PreAllocator {
     // }
 }
 
+type CacheMap = AHashMap<(Vec<u8>, usize), Option<Vec<u8>>>;
+
+#[derive(Default)]
+struct Cache {
+    // (extended key, area idx) => value
+    header: Arc<RwLock<CacheMap>>,
+    // (extended key, area idx) => value
+    middle: Arc<RwLock<CacheMap>>,
+}
+
+impl Cache {
+    fn new() -> Self {
+        Self {
+            header: Arc::new(RwLock::new(AHashMap::new())),
+            middle: Arc::new(RwLock::new(AHashMap::new())),
+        }
+    }
+}
+
 fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     let dir = vsdb_get_base_dir();
 
@@ -383,7 +505,7 @@ fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     cfg.create_missing_column_families(true);
     cfg.set_prefix_extractor(SliceTransform::create_fixed_prefix(size_of::<Pre>()));
     cfg.increase_parallelism(available_parallelism().c(d!())?.get() as i32);
-    cfg.set_num_levels(7);
+    // cfg.set_num_levels(7);
     cfg.set_max_open_files(4096);
     cfg.set_allow_mmap_writes(true);
     cfg.set_allow_mmap_reads(true);

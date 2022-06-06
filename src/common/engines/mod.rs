@@ -60,6 +60,7 @@ pub trait Engine: Sized {
     fn alloc_version_id(&self) -> VersionID;
     fn area_count(&self) -> usize;
     fn flush(&self);
+    fn flush_cache(&self);
 
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> MapxIter;
 

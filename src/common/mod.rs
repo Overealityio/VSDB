@@ -17,6 +17,7 @@ use {
         env, fs,
         mem::size_of,
         sync::atomic::{AtomicBool, Ordering},
+        thread,
     },
 };
 
@@ -78,15 +79,36 @@ static VSDB_CUSTOM_DIR: Lazy<String> = Lazy::new(|| {
     d
 });
 
+// flush in-memory cache to disk every N milliseconds
+const CACHE_FLUSH_ITV_MS: u64 = 3 * 1000;
+
 #[cfg(any(
     feature = "rocks_engine",
     all(feature = "rocks_engine", feature = "sled_engine"),
     all(not(feature = "rocks_engine"), not(feature = "sled_engine")),
 ))]
-pub(crate) static VSDB: Lazy<VsDB<engines::RocksDB>> = Lazy::new(|| pnk!(VsDB::new()));
+pub(crate) static VSDB: Lazy<VsDB<engines::RocksDB>> = Lazy::new(|| {
+    let res = pnk!(VsDB::new());
+    thread::spawn(|| {
+        loop {
+            sleep_ms!(CACHE_FLUSH_ITV_MS);
+            VSDB.db.flush_cache();
+        }
+    });
+    res
+});
 
 #[cfg(all(feature = "sled_engine", not(feature = "rocks_engine")))]
-pub(crate) static VSDB: Lazy<VsDB<engines::Sled>> = Lazy::new(|| pnk!(VsDB::new()));
+pub(crate) static VSDB: Lazy<VsDB<engines::Sled>> = Lazy::new(|| {
+    let res = pnk!(VsDB::new());
+    thread::spawn(|| {
+        loop {
+            sleep_ms!(CACHE_FLUSH_ITV_MS);
+            VSDB.db.flush_cache();
+        }
+    });
+    res
+});
 
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
