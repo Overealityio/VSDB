@@ -1,7 +1,7 @@
-![GitHub top language](https://img.shields.io/github/languages/top/ccmlm/VSDB)
+![GitHub top language](https://img.shields.io/github/languages/top/rust-util-collections/VSDB)
 [![Latest Version](https://img.shields.io/crates/v/VSDB.svg)](https://crates.io/crates/VSDB)
 [![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://docs.rs/VSDB)
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/ccmlm/VSDB/Rust)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/rust-util-collections/VSDB/Rust)
 [![Minimum rustc version](https://img.shields.io/badge/rustc-1.60+-lightgray.svg)](https://github.com/rust-random/rand#rust-version-requirements)
 
 # VSDB
