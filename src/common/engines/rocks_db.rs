@@ -286,7 +286,7 @@ impl Engine for RocksEngine {
         static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
         let x = LK.lock();
 
-        for i in 0..DATA_SET_NUM {
+        for i in 0..=DATA_SET_NUM {
             let data = {
                 let mut buf = self.cache.buf[i].write();
                 let data = mem::take(&mut buf[0]);
@@ -529,9 +529,10 @@ impl Iterator for RocksIter {
             .next()
             .map(|(ik, iv)| (ik[PREFIX_SIZ..].into(), iv))
         {
-            if self.cache_deleted.contains(&k) || self.candidate_values.contains_key(&k)
-            {
+            if self.cache_deleted.contains(&k) {
                 continue;
+            } else if self.candidate_values.contains_key(&k) {
+                break;
             } else {
                 self.candidate_values.insert(k, v);
                 break;
@@ -558,9 +559,10 @@ impl DoubleEndedIterator for RocksIter {
             .next()
             .map(|(ik, iv)| (ik[PREFIX_SIZ..].into(), iv))
         {
-            if self.cache_deleted.contains(&k) || self.candidate_values.contains_key(&k)
-            {
+            if self.cache_deleted.contains(&k) {
                 continue;
+            } else if self.candidate_values.contains_key(&k) {
+                break;
             } else {
                 self.candidate_values.insert(k, v);
                 break;
@@ -634,8 +636,8 @@ fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     cfg.increase_parallelism(available_parallelism().c(d!())?.get() as i32);
     // cfg.set_num_levels(7);
     cfg.set_max_open_files(8192);
-    // cfg.set_allow_mmap_writes(true);
-    // cfg.set_allow_mmap_reads(true);
+    cfg.set_allow_mmap_writes(true);
+    cfg.set_allow_mmap_reads(true);
     // cfg.set_use_direct_reads(true);
     // cfg.set_use_direct_io_for_flush_and_compaction(true);
     // cfg.set_write_buffer_size(512 * MB as usize);
