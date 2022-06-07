@@ -188,6 +188,7 @@ fn test_valueende() {
             let key = (i, i, i);
             assert!(pnk!(hdr.insert(key, value)).is_none());
         });
+        crate::vsdb_flush();
         <MapxTkVs<usize, usize, usize, usize> as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<MapxTkVs<usize, usize, usize, usize> as ValueEnDe>::decode(

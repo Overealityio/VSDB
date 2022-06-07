@@ -206,6 +206,7 @@ fn test_valueende() {
             let key = <usize as ValueEnDe>::encode(&key);
             assert!(pnk!(hdr.insert(key, value)).is_none());
         });
+        crate::vsdb_flush();
         <MapxOrdRawKeyVs<usize> as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<MapxOrdRawKeyVs<usize> as ValueEnDe>::decode(&dehdr));

@@ -40,6 +40,7 @@ fn test_valueende() {
                 let key: &[&[u8]] = &[&subkey, &subkey];
                 assert!(pnk!(hdr.insert(&key, &value)).is_none());
             });
+        crate::vsdb_flush();
         <MapxRawKeyMk<Box<[u8]>> as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<MapxRawKeyMk<Box<[u8]>> as ValueEnDe>::decode(&dehdr));

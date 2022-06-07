@@ -10,7 +10,7 @@ use std::ops::{Bound, RangeBounds};
 
 // the 'prefix search' in sled is just a global scaning,
 // use a relative larger number to sharding the `Tree` pressure.
-const DATA_SET_NUM: usize = 796;
+const DATA_SET_NUM: usize = 512;
 
 const META_KEY_BRANCH_ID: [u8; 1] = [u8::MAX - 1];
 const META_KEY_VERSION_ID: [u8; 1] = [u8::MAX - 2];

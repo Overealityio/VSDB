@@ -45,6 +45,7 @@ fn test_valueende() {
             .for_each(|(key, value)| {
                 hdr.insert(key, value);
             });
+        crate::vsdb_flush();
         <VecxRaw as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<VecxRaw as ValueEnDe>::decode(&dehdr));

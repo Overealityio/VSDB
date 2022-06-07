@@ -80,7 +80,7 @@ static VSDB_CUSTOM_DIR: Lazy<String> = Lazy::new(|| {
 });
 
 // flush in-memory cache to disk every N milliseconds
-const CACHE_FLUSH_ITV_MS: u64 = 3 * 1000;
+const CACHE_FLUSH_ITV_MS: u64 = 1000;
 
 #[cfg(any(
     feature = "rocks_engine",

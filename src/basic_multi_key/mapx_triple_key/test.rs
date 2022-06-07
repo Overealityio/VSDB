@@ -39,6 +39,7 @@ fn test_valueende() {
             let key = &(&key, &key, &key);
             assert!(hdr.insert(key, &value).is_none());
         });
+        crate::vsdb_flush();
         <MapxTk<usize, usize, usize, usize> as ValueEnDe>::encode(&hdr)
     };
     let reloaded: MapxTk<usize, usize, usize, usize> =

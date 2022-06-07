@@ -29,9 +29,9 @@ example:
 
 test: example
 	- rm -rf ~/.vsdb /tmp/.vsdb
-	cargo test --tests --bins --features "derive" -- --test-threads=1
+	cargo test --release --tests --bins --features "derive" -- --test-threads=1
 	- rm -rf ~/.vsdb /tmp/.vsdb
-	cargo test --release --tests --bins --features "derive,compress" -- --test-threads=1
+	cargo test --tests --bins --features "derive" -- --test-threads=1
 
 exampleall:
 	- rm -rf ~/.vsdb /tmp/.vsdb
@@ -41,9 +41,9 @@ exampleall:
 
 testall: test exampleall
 	- rm -rf ~/.vsdb /tmp/.vsdb
-	cargo test --tests --bins --no-default-features --features "derive,sled_engine,msgpack_codec" -- --test-threads=1
-	- rm -rf ~/.vsdb /tmp/.vsdb
 	cargo test --release --tests --bins --no-default-features --features "derive,sled_engine,msgpack_codec,compress" -- --test-threads=1
+	- rm -rf ~/.vsdb /tmp/.vsdb
+	cargo test --tests --bins --no-default-features --features "derive,sled_engine,msgpack_codec" -- --test-threads=1
 
 bench:
 	- rm -rf ~/.vsdb

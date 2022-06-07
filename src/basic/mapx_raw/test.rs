@@ -52,6 +52,7 @@ fn test_valueende() {
             .for_each(|(key, value)| {
                 assert!(hdr.insert(&key, &value).is_none());
             });
+        crate::vsdb_flush();
         <MapxRaw as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<MapxRaw as ValueEnDe>::decode(&dehdr));
@@ -88,6 +89,9 @@ fn test_first_last() {
         .for_each(|(key, value)| {
             assert!(hdr.insert(&key, &value).is_none());
         });
+
+    crate::vsdb_flush();
+
     let (_, value) = pnk!(hdr.iter().next());
     let val = pnk!(<usize as ValueEnDe>::decode(&value));
     assert_eq!(0, val);

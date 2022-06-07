@@ -204,6 +204,7 @@ fn test_valueende() {
             .for_each(|(key, value)| {
                 assert!(pnk!(hdr.insert(&key, &value)).is_none());
             });
+        crate::vsdb_flush();
         <MapxRawVs as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<MapxRawVs as ValueEnDe>::decode(&dehdr));

@@ -48,6 +48,7 @@ fn test_valueende() {
         (0..cnt).map(|i: usize| (i, i)).for_each(|(key, value)| {
             assert!(hdr.insert(key, value).is_none());
         });
+        crate::vsdb_flush();
         <Mapx<usize, usize> as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<Mapx<usize, usize> as ValueEnDe>::decode(&dehdr));

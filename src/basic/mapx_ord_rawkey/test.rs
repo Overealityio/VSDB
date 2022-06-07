@@ -51,6 +51,7 @@ fn test_valueende() {
             .for_each(|(key, value)| {
                 assert!(hdr.insert(Box::new(key), value).is_none());
             });
+        crate::vsdb_flush();
         <MapxOrdRawKey<usize> as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<MapxOrdRawKey<usize> as ValueEnDe>::decode(&dehdr));

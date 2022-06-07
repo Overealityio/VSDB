@@ -40,6 +40,7 @@ fn test_valueende() {
         (0..cnt).map(|i: usize| (i, i)).for_each(|(key, value)| {
             hdr.insert(key, value);
         });
+        crate::vsdb_flush();
         <Vecx<usize> as ValueEnDe>::encode(&hdr)
     };
     let reloaded = pnk!(<Vecx<usize> as ValueEnDe>::decode(&dehdr));
