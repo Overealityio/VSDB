@@ -146,16 +146,18 @@ impl Engine for RocksEngine {
             usize
         ));
 
-        let res = RocksEngine {
+        let mut opts = FlushOptions::default();
+        opts.set_wait(true);
+        meta.flush().c(d!())?;
+
+        Ok(RocksEngine {
             meta,
             areas,
             prefix_allocator,
             // length of the raw key, exclude the meta prefix
             max_keylen,
             cache: Cache::new(),
-        };
-
-        Ok(res)
+        })
     }
 
     // 'step 1' and 'step 2' is not atomic in multi-threads scene,
