@@ -41,13 +41,9 @@ use crate::common::{
     ende::{SimpleVisitor, ValueEnDe},
     BranchID, Pre, PreBytes, RawValue, VersionID, VSDB,
 };
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 use ruc::*;
 use serde::{Deserialize, Serialize};
 use std::{ops::RangeBounds, result::Result as StdResult};
-
-static LEN_LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
@@ -97,19 +93,9 @@ pub trait Engine: Sized {
 
     fn set_instance_len(&self, instance_prefix: PreBytes, new_len: u64);
 
-    #[allow(unused_variables)]
-    fn increase_instance_len(&self, instance_prefix: PreBytes) {
-        let x = LEN_LK.lock();
-        let l = self.get_instance_len(instance_prefix);
-        self.set_instance_len(instance_prefix, l + 1)
-    }
+    fn increase_instance_len(&self, instance_prefix: PreBytes);
 
-    #[allow(unused_variables)]
-    fn decrease_instance_len(&self, instance_prefix: PreBytes) {
-        let x = LEN_LK.lock();
-        let l = self.get_instance_len(instance_prefix);
-        self.set_instance_len(instance_prefix, l - 1)
-    }
+    fn decrease_instance_len(&self, instance_prefix: PreBytes);
 }
 
 /////////////////////////////////////////////////////////////////////////////

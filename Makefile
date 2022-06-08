@@ -22,27 +22,27 @@ lintall: lint
 	cargo check --examples --no-default-features --features "derive,sled_engine,msgpack_codec"
 
 example:
-	- rm -rf ~/.vsdb /tmp/.vsdb
+	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo run --example derive_vs
 	cargo run --example web_server
 	cargo run --example blockchain_state
 
 test: example
-	- rm -rf ~/.vsdb /tmp/.vsdb
+	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo test --release --tests --bins --features "derive" -- --test-threads=1
-	- rm -rf ~/.vsdb /tmp/.vsdb
+	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo test --tests --bins --features "derive" -- --test-threads=1
 
 exampleall:
-	- rm -rf ~/.vsdb /tmp/.vsdb
+	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo run --no-default-features --features "derive,sled_engine,msgpack_codec" --example derive_vs
 	cargo run --no-default-features --features "derive,sled_engine,msgpack_codec" --example web_server
 	cargo run --no-default-features --features "derive,sled_engine,msgpack_codec" --example blockchain_state
 
 testall: test exampleall
-	- rm -rf ~/.vsdb /tmp/.vsdb
+	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo test --release --tests --bins --no-default-features --features "derive,sled_engine,msgpack_codec,compress" -- --test-threads=1
-	- rm -rf ~/.vsdb /tmp/.vsdb
+	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo test --tests --bins --no-default-features --features "derive,sled_engine,msgpack_codec" -- --test-threads=1
 
 bench:

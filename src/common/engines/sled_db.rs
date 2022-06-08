@@ -240,7 +240,23 @@ impl Engine for SledEngine {
             .insert(instance_prefix, new_len.to_be_bytes())
             .unwrap();
     }
+
+    #[allow(unused_variables)]
+    fn increase_instance_len(&self, instance_prefix: PreBytes) {
+        let x = LEN_LK.lock();
+        let l = self.get_instance_len(instance_prefix);
+        self.set_instance_len(instance_prefix, l + 1)
+    }
+
+    #[allow(unused_variables)]
+    fn decrease_instance_len(&self, instance_prefix: PreBytes) {
+        let x = LEN_LK.lock();
+        let l = self.get_instance_len(instance_prefix);
+        self.set_instance_len(instance_prefix, l - 1)
+    }
 }
+
+static LEN_LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 pub struct SledIter {
     inner: Iter,

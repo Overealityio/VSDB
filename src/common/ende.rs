@@ -10,11 +10,7 @@ use serde::{
     de::{self, DeserializeOwned},
     Serialize,
 };
-use std::{
-    fmt,
-    mem::{size_of, transmute},
-    result::Result as StdResult,
-};
+use std::{fmt, mem::size_of, result::Result as StdResult};
 
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
@@ -281,14 +277,8 @@ macro_rules! impl_type {
                     .into_boxed_slice()
             }
             #[inline(always)]
-            fn into_bytes(mut self) -> RawBytes {
-                for i in 0..self.len() {
-                    self[i] = self[i].to_be();
-                }
-                unsafe {
-                    let v = transmute::<Box<[$int]>, RawBytes>(self.into_boxed_slice());
-                    v
-                }
+            fn into_bytes(self) -> RawBytes {
+                self.to_bytes()
             }
             #[inline(always)]
             fn from_slice(b: &[u8]) -> Result<Self> {
@@ -305,18 +295,7 @@ macro_rules! impl_type {
             }
             #[inline(always)]
             fn from_bytes(b: RawBytes) -> Result<Self> {
-                if 0 != b.len() % size_of::<$int>() {
-                    return Err(eg!("invalid bytes"));
-                }
-                let mut ret = unsafe {
-                    let mut v = transmute::<Vec<u8>, Vec<$int>>(b.into());
-                    v.set_len(v.len() / size_of::<$int>());
-                    v
-                };
-                for i in 0..ret.len() {
-                    ret[i] = <$int>::from_be(ret[i]);
-                }
-                Ok(ret)
+                Self::from_slice(&b[..])
             }
         }
     };

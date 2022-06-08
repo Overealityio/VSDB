@@ -4,7 +4,6 @@ use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawBytes,
     RawKey, RawValue, VersionID, INITIAL_BRANCH_ID, MB, PREFIX_SIZ, RESERVED_ID_CNT,
 };
-use ahash::AHashMap;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use rocksdb::{
@@ -13,6 +12,7 @@ use rocksdb::{
 };
 use ruc::*;
 use std::{
+    collections::HashMap,
     mem::{self, size_of},
     ops::{Bound, RangeBounds},
     sync::{
@@ -470,7 +470,6 @@ impl Engine for RocksEngine {
         );
     }
 
-    #[allow(unused_variables)]
     fn increase_instance_len(&self, instance_prefix: PreBytes) {
         let mut buf = self.cache.buf[DATA_SET_NUM].write();
 
@@ -489,7 +488,6 @@ impl Engine for RocksEngine {
         );
     }
 
-    #[allow(unused_variables)]
     fn decrease_instance_len(&self, instance_prefix: PreBytes) {
         let mut buf = self.cache.buf[DATA_SET_NUM].write();
 
@@ -504,7 +502,7 @@ impl Engine for RocksEngine {
 
         buf[0].insert(
             instance_prefix.to_vec().into(),
-            Some((l + 1).to_be_bytes().into()),
+            Some((l - 1).to_be_bytes().into()),
         );
     }
 }
@@ -556,7 +554,7 @@ impl PreAllocator {
 // NOTE:
 // the last item is the cache of meta data,
 // aka `cache_map[DATA_SET_NUM]`
-type CacheMap = AHashMap<RawKey, Option<RawValue>>;
+type CacheMap = HashMap<RawKey, Option<RawValue>>;
 
 #[derive(Default)]
 struct Cache {
@@ -567,7 +565,7 @@ impl Cache {
     fn new() -> Self {
         Self {
             buf: (0..=DATA_SET_NUM)
-                .map(|_| Arc::new(RwLock::new([AHashMap::new(), AHashMap::new()])))
+                .map(|_| Arc::new(RwLock::new([HashMap::new(), HashMap::new()])))
                 .collect(),
         }
     }
