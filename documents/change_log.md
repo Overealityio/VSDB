@@ -7,6 +7,7 @@
 - Optimize cache mechanism
   - More tests for performance and stability
   - Apply cache mechanism to all backend DB-engine
+- Change LICENSE from MIT to GPL-3.0
 
 ## v0.38.0
 

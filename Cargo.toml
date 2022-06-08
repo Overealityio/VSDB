@@ -8,7 +8,7 @@ homepage = "https://github.com/rust-util-collections/vsdb"
 repository = "https://github.com/rust-util-collections/vsdb"
 keywords = ["git", "leveldb", "rocksdb", "version", "vcs"]
 categories = ["database-implementations", "data-structures", "algorithms", "caching"]
-license = "GPLv3"
+license = "GPL-3.0"
 
 [dependencies]
 ruc = "1.0.7"

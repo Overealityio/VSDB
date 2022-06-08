@@ -181,3 +181,7 @@ all stateful data has two additional identification dimensions ('branch' and 've
   - The correct way is to read what you need from it, and then process the real content
 - Version names must be globally unique
   - Using a same version name on different branches is also not allowed
+
+# LICENSE
+
+**GPL-3.0**
