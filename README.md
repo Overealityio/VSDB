@@ -174,6 +174,7 @@ all stateful data has two additional identification dimensions ('branch' and 've
 
 ## NOTE
 
+- To ensure that your program can exit gracefully, please run `vsdb_flush` at the end
 - The serialized result of a VSDB instance can not be used as the basis for distributed consensus
   - The serialized result only contains some meta-information(storage paths, etc.)
   - These meta-information are likely to be different in different environments

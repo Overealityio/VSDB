@@ -1,5 +1,13 @@
 # Change log
 
+## v0.39.0
+
+#### Internal optimizations
+
+- Optimize cache mechanism
+  - More tests for performance and stability
+  - Apply cache mechanism to all backend DB-engine
+
 ## v0.38.0
 
 #### Internal optimizations

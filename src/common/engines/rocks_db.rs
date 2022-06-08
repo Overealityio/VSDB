@@ -116,7 +116,6 @@ impl RocksEngine {
     #[allow(unused_variables)]
     fn flush_area_cache(&self, area_idx: usize) {
         static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
         let x = LK.lock();
 
         let data = {
@@ -550,14 +549,14 @@ impl PreAllocator {
     // }
 }
 
-// area idx => kv set
-// NOTE:
-// the last item is the cache of meta data,
-// aka `cache_map[DATA_SET_NUM]`
 type CacheMap = HashMap<RawKey, Option<RawValue>>;
 
 #[derive(Default)]
 struct Cache {
+    // area idx => kv set
+    // NOTE:
+    // the last item is the cache of meta data,
+    // aka `cache_map[DATA_SET_NUM]`
     buf: Vec<Arc<RwLock<[CacheMap; 2]>>>,
 }
 

@@ -2,11 +2,16 @@ use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawKey,
     RawValue, VersionID, GB, INITIAL_BRANCH_ID, PREFIX_SIZ, RESERVED_ID_CNT,
 };
+use ahash::AHashMap as HashMap;
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use ruc::*;
-use sled::{Config, Db, IVec, Iter, Mode, Tree};
-use std::ops::{Bound, RangeBounds};
+use sled::{Batch, Config, Db, IVec, Iter, Mode, Tree};
+use std::{
+    mem,
+    ops::{Bound, RangeBounds},
+    sync::Arc,
+};
 
 // the 'prefix search' in sled is just a global scaning,
 // use a relative larger number to sharding the `Tree` pressure.
@@ -20,6 +25,70 @@ pub(crate) struct SledEngine {
     meta: Db,
     areas: Vec<Tree>,
     prefix_allocator: PreAllocator,
+    cache: Cache,
+}
+
+impl SledEngine {
+    #[inline(always)]
+    fn get_by_extended_key(&self, area_idx: usize, ex_key: &[u8]) -> Option<RawValue> {
+        let buf = self.cache.buf[area_idx].read();
+
+        if let Some(v) = buf[0].get(ex_key).or_else(|| buf[1].get(ex_key)) {
+            let res = v.clone();
+            drop(buf);
+            res
+        } else {
+            drop(buf);
+            self.areas[area_idx]
+                .get(ex_key)
+                .unwrap()
+                .map(|v| v.to_vec().into())
+        }
+    }
+
+    fn update_batch(&self, data: CacheMap, area_idx: usize) -> Result<()> {
+        alt!(data.is_empty(), return Ok(()));
+
+        let mut batch = Batch::default();
+        for (extended_key, value) in data.into_iter() {
+            if let Some(v) = value {
+                batch.insert(extended_key, v);
+            } else {
+                batch.remove(extended_key);
+            }
+        }
+
+        if DATA_SET_NUM == area_idx {
+            // update meta
+            self.meta.apply_batch(batch).c(d!())
+        } else {
+            self.areas[area_idx].apply_batch(batch).c(d!())
+        }
+    }
+
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn flush_area_cache(&self, area_idx: usize) {
+        static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+        let x = LK.lock();
+
+        let data = {
+            let mut buf = self.cache.buf[area_idx].write();
+            let data = mem::take(&mut buf[0]);
+            buf[1] = data.clone();
+            data
+        };
+
+        pnk!(self.update_batch(data, area_idx));
+    }
+
+    #[inline(always)]
+    fn flush_engine(&self) {
+        self.meta.flush().unwrap();
+        (0..self.areas.len()).for_each(|i| {
+            self.areas[i].flush().unwrap();
+        });
+    }
 }
 
 impl Engine for SledEngine {
@@ -53,6 +122,7 @@ impl Engine for SledEngine {
             meta,
             areas,
             prefix_allocator,
+            cache: Cache::new(),
         })
     }
 
@@ -64,18 +134,27 @@ impl Engine for SledEngine {
         let x = LK.lock();
 
         // step 1
-        let ret = crate::parse_prefix!(
-            self.meta
-                .get(self.prefix_allocator.key)
-                .unwrap()
-                .unwrap()
-                .as_ref()
-        );
+        let buf = self.cache.buf[DATA_SET_NUM].read();
+
+        let ret = if let Some(v) = buf[0]
+            .get(&self.prefix_allocator.key[..])
+            .or_else(|| buf[1].get(&self.prefix_allocator.key[..]))
+        {
+            let ret = crate::parse_prefix!(v.as_ref().unwrap());
+            drop(buf);
+            ret
+        } else {
+            drop(buf);
+            crate::parse_prefix!(
+                self.meta.get(self.prefix_allocator.key).unwrap().unwrap()
+            )
+        };
 
         // step 2
-        self.meta
-            .insert(self.prefix_allocator.key, (1 + ret).to_be_bytes())
-            .unwrap();
+        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+            self.prefix_allocator.key.to_vec().into(),
+            Some((1 + ret).to_be_bytes().into()),
+        );
 
         ret
     }
@@ -88,15 +167,28 @@ impl Engine for SledEngine {
         let x = LK.lock();
 
         // step 1
-        let ret = crate::parse_int!(
-            self.meta.get(META_KEY_BRANCH_ID).unwrap().unwrap().as_ref(),
-            BranchID
-        );
+        let buf = self.cache.buf[DATA_SET_NUM].read();
+
+        let ret = if let Some(v) = buf[0]
+            .get(&META_KEY_BRANCH_ID[..])
+            .or_else(|| buf[1].get(&META_KEY_BRANCH_ID[..]))
+        {
+            let ret = crate::parse_int!(v.as_ref().unwrap(), BranchID);
+            drop(buf);
+            ret
+        } else {
+            drop(buf);
+            crate::parse_int!(
+                self.meta.get(META_KEY_BRANCH_ID).unwrap().unwrap(),
+                BranchID
+            )
+        };
 
         // step 2
-        self.meta
-            .insert(META_KEY_BRANCH_ID, (1 + ret).to_be_bytes())
-            .unwrap();
+        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+            META_KEY_BRANCH_ID.to_vec().into(),
+            Some((1 + ret).to_be_bytes().into()),
+        );
 
         ret
     }
@@ -109,41 +201,56 @@ impl Engine for SledEngine {
         let x = LK.lock();
 
         // step 1
-        let ret = crate::parse_int!(
-            self.meta
-                .get(META_KEY_VERSION_ID)
-                .unwrap()
-                .unwrap()
-                .as_ref(),
-            VersionID
-        );
+        let buf = self.cache.buf[DATA_SET_NUM].read();
+
+        let ret = if let Some(v) = buf[0]
+            .get(&META_KEY_VERSION_ID[..])
+            .or_else(|| buf[1].get(&META_KEY_VERSION_ID[..]))
+        {
+            let ret = crate::parse_int!(v.as_ref().unwrap(), VersionID);
+            drop(buf);
+            ret
+        } else {
+            drop(buf);
+            crate::parse_int!(
+                self.meta.get(META_KEY_VERSION_ID).unwrap().unwrap(),
+                VersionID
+            )
+        };
 
         // step 2
-        self.meta
-            .insert(META_KEY_VERSION_ID, (1 + ret).to_be_bytes())
-            .unwrap();
+        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+            META_KEY_VERSION_ID.to_vec().into(),
+            Some((1 + ret).to_be_bytes().into()),
+        );
 
         ret
     }
 
+    #[inline(always)]
     fn area_count(&self) -> usize {
-        self.areas.len()
+        DATA_SET_NUM
     }
 
+    #[inline(always)]
     fn flush(&self) {
-        (0..self.areas.len()).for_each(|i| {
-            self.areas[i].flush().unwrap();
-        });
+        self.flush_cache();
+        self.flush_engine();
     }
 
     // flush cache every N seconds
     #[inline(always)]
     #[allow(unused_variables)]
     fn flush_cache(&self) {
-        // TODO
+        for i in 0..=DATA_SET_NUM {
+            self.flush_area_cache(i);
+        }
     }
 
+    #[inline(always)]
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> SledIter {
+        self.flush_area_cache(area_idx);
+
         SledIter {
             inner: self.areas[area_idx].scan_prefix(meta_prefix.as_slice()),
             bounds: (Bound::Unbounded, Bound::Unbounded),
@@ -156,6 +263,8 @@ impl Engine for SledEngine {
         meta_prefix: PreBytes,
         bounds: R,
     ) -> SledIter {
+        self.flush_area_cache(area_idx);
+
         let mut b_lo = meta_prefix.to_vec();
         let l = match bounds.start_bound() {
             Bound::Included(lo) => {
@@ -188,6 +297,7 @@ impl Engine for SledEngine {
         }
     }
 
+    #[inline(always)]
     fn get(
         &self,
         area_idx: usize,
@@ -196,12 +306,10 @@ impl Engine for SledEngine {
     ) -> Option<RawValue> {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
-        self.areas[area_idx]
-            .get(k)
-            .unwrap()
-            .map(|iv| iv.to_vec().into_boxed_slice())
+        self.get_by_extended_key(area_idx, &k)
     }
 
+    #[inline(always)]
     fn insert(
         &self,
         area_idx: usize,
@@ -211,12 +319,14 @@ impl Engine for SledEngine {
     ) -> Option<RawValue> {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
-        self.areas[area_idx]
-            .insert(k, value)
-            .unwrap()
-            .map(|iv| iv.to_vec().into_boxed_slice())
+        let k = k.into_boxed_slice();
+
+        let old_v = self.get_by_extended_key(area_idx, &k);
+        self.cache.buf[area_idx].write()[0].insert(k, Some(value.to_vec().into()));
+        old_v
     }
 
+    #[inline(always)]
     fn remove(
         &self,
         area_idx: usize,
@@ -225,38 +335,76 @@ impl Engine for SledEngine {
     ) -> Option<RawValue> {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
-        self.areas[area_idx]
-            .remove(k)
-            .unwrap()
-            .map(|iv| iv.to_vec().into_boxed_slice())
+        let k = k.into_boxed_slice();
+
+        let old_v = self.get_by_extended_key(area_idx, &k);
+        self.cache.buf[area_idx].write()[0].insert(k, None);
+        old_v
     }
 
+    #[inline(always)]
     fn get_instance_len(&self, instance_prefix: PreBytes) -> u64 {
-        crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
+        let buf = self.cache.buf[DATA_SET_NUM].read();
+
+        if let Some(v) = buf[0]
+            .get(&instance_prefix[..])
+            .or_else(|| buf[1].get(&instance_prefix[..]))
+        {
+            let ret = crate::parse_int!(v.as_ref().unwrap(), u64);
+            drop(buf);
+            ret
+        } else {
+            drop(buf);
+            crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
+        }
     }
 
+    #[inline(always)]
     fn set_instance_len(&self, instance_prefix: PreBytes, new_len: u64) {
-        self.meta
-            .insert(instance_prefix, new_len.to_be_bytes())
-            .unwrap();
+        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+            instance_prefix.to_vec().into(),
+            Some(new_len.to_be_bytes().into()),
+        );
     }
 
-    #[allow(unused_variables)]
+    #[inline(always)]
     fn increase_instance_len(&self, instance_prefix: PreBytes) {
-        let x = LEN_LK.lock();
-        let l = self.get_instance_len(instance_prefix);
-        self.set_instance_len(instance_prefix, l + 1)
+        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+
+        let l = if let Some(v) = buf[0]
+            .get(&instance_prefix[..])
+            .or_else(|| buf[1].get(&instance_prefix[..]))
+        {
+            crate::parse_int!(v.as_ref().unwrap(), u64)
+        } else {
+            crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
+        };
+
+        buf[0].insert(
+            instance_prefix.to_vec().into(),
+            Some((l + 1).to_be_bytes().into()),
+        );
     }
 
-    #[allow(unused_variables)]
+    #[inline(always)]
     fn decrease_instance_len(&self, instance_prefix: PreBytes) {
-        let x = LEN_LK.lock();
-        let l = self.get_instance_len(instance_prefix);
-        self.set_instance_len(instance_prefix, l - 1)
+        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+
+        let l = if let Some(v) = buf[0]
+            .get(&instance_prefix[..])
+            .or_else(|| buf[1].get(&instance_prefix[..]))
+        {
+            crate::parse_int!(v.as_ref().unwrap(), u64)
+        } else {
+            crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
+        };
+
+        buf[0].insert(
+            instance_prefix.to_vec().into(),
+            Some((l - 1).to_be_bytes().into()),
+        );
     }
 }
-
-static LEN_LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 pub struct SledIter {
     inner: Iter,
@@ -268,10 +416,7 @@ impl Iterator for SledIter {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((k, v)) = self.inner.next().map(|i| i.unwrap()) {
             if self.bounds.contains(&k) {
-                return Some((
-                    k[PREFIX_SIZ..].to_vec().into_boxed_slice(),
-                    v.to_vec().into_boxed_slice(),
-                ));
+                return Some((k[PREFIX_SIZ..].to_vec().into(), v.to_vec().into()));
             }
         }
         None
@@ -282,10 +427,7 @@ impl DoubleEndedIterator for SledIter {
     fn next_back(&mut self) -> Option<Self::Item> {
         while let Some((k, v)) = self.inner.next_back().map(|i| i.unwrap()) {
             if self.bounds.contains(&k) {
-                return Some((
-                    k[PREFIX_SIZ..].to_vec().into_boxed_slice(),
-                    v.to_vec().into_boxed_slice(),
-                ));
+                return Some((k[PREFIX_SIZ..].to_vec().into(), v.to_vec().into()));
             }
         }
         None
@@ -305,6 +447,27 @@ impl PreAllocator {
             },
             (RESERVED_ID_CNT + Pre::MIN).to_be_bytes(),
         )
+    }
+}
+type CacheMap = HashMap<RawKey, Option<RawValue>>;
+
+#[derive(Default)]
+struct Cache {
+    // area idx => kv set
+    //
+    // NOTE:
+    // the last item is the cache of meta data,
+    // aka `cache_map[DATA_SET_NUM]`
+    buf: Vec<Arc<RwLock<[CacheMap; 2]>>>,
+}
+
+impl Cache {
+    fn new() -> Self {
+        Self {
+            buf: (0..=DATA_SET_NUM)
+                .map(|_| Arc::new(RwLock::new([HashMap::new(), HashMap::new()])))
+                .collect(),
+        }
     }
 }
 

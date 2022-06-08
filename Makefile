@@ -16,10 +16,10 @@ lint:
 	cargo check --examples
 
 lintall: lint
-	cargo clippy --no-default-features --features "derive,sled_engine,compress,msgpack_codec"
-	cargo check --tests --no-default-features --features "derive,sled_engine,msgpack_codec"
-	cargo check --benches --no-default-features --features "derive,sled_engine,msgpack_codec"
-	cargo check --examples --no-default-features --features "derive,sled_engine,msgpack_codec"
+	cargo clippy --no-default-features --features "derive,rocks_engine,compress,msgpack_codec"
+	cargo check --tests --no-default-features --features "derive,rocks_engine,msgpack_codec"
+	cargo check --benches --no-default-features --features "derive,rocks_engine,msgpack_codec"
+	cargo check --examples --no-default-features --features "derive,rocks_engine,msgpack_codec"
 
 example:
 	- rm -rf ~/.vsdb /tmp/vsdb_testing
@@ -35,27 +35,27 @@ test: example
 
 exampleall:
 	- rm -rf ~/.vsdb /tmp/vsdb_testing
-	cargo run --no-default-features --features "derive,sled_engine,msgpack_codec" --example derive_vs
-	cargo run --no-default-features --features "derive,sled_engine,msgpack_codec" --example web_server
-	cargo run --no-default-features --features "derive,sled_engine,msgpack_codec" --example blockchain_state
+	cargo run --no-default-features --features "derive,rocks_engine,msgpack_codec" --example derive_vs
+	cargo run --no-default-features --features "derive,rocks_engine,msgpack_codec" --example web_server
+	cargo run --no-default-features --features "derive,rocks_engine,msgpack_codec" --example blockchain_state
 
 testall: test exampleall
 	- rm -rf ~/.vsdb /tmp/vsdb_testing
-	cargo test --release --tests --bins --no-default-features --features "derive,sled_engine,msgpack_codec,compress" -- --test-threads=1
+	cargo test --release --tests --bins --no-default-features --features "derive,rocks_engine,msgpack_codec,compress" -- --test-threads=1
 	- rm -rf ~/.vsdb /tmp/vsdb_testing
-	cargo test --tests --bins --no-default-features --features "derive,sled_engine,msgpack_codec" -- --test-threads=1
+	cargo test --tests --bins --no-default-features --features "derive,rocks_engine,msgpack_codec" -- --test-threads=1
 
 bench:
 	- rm -rf ~/.vsdb
 	cargo bench
 	du -sh ~/.vsdb
 
-bench_sled:
+bench_rocksdb:
 	- rm -rf ~/.vsdb
-	cargo bench --no-default-features --features "sled_engine,msgpack_codec"
+	cargo bench --no-default-features --features "rocks_engine,msgpack_codec"
 	du -sh ~/.vsdb
 
-benchall: bench bench_sled
+benchall: bench bench_rocks
 
 fmt:
 	cargo +nightly fmt
