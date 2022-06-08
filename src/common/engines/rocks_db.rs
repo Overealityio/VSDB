@@ -2,7 +2,7 @@
 
 use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawBytes,
-    RawKey, RawValue, VersionID, INITIAL_BRANCH_ID, PREFIX_SIZ, RESERVED_ID_CNT,
+    RawKey, RawValue, VersionID, INITIAL_BRANCH_ID, MB, PREFIX_SIZ, RESERVED_ID_CNT,
 };
 use ahash::{AHashMap, AHashSet};
 use once_cell::sync::Lazy;
@@ -26,7 +26,7 @@ use std::{
     thread::available_parallelism,
 };
 
-const DATA_SET_NUM: usize = 32;
+const DATA_SET_NUM: usize = 64;
 
 const META_KEY_MAX_KEYLEN: [u8; 1] = [u8::MAX];
 const META_KEY_BRANCH_ID: [u8; 1] = [u8::MAX - 1];
@@ -98,6 +98,8 @@ impl RocksEngine {
     }
 
     fn update_batch(&self, data: CacheMap, area_idx: usize) -> Result<()> {
+        alt!(data.is_empty(), return Ok(()));
+
         let mut batch = WriteBatch::default();
         for (extended_key, value) in data.into_iter() {
             if let Some(v) = value {
@@ -112,6 +114,23 @@ impl RocksEngine {
             }
         }
         self.meta.write(batch).c(d!())
+    }
+
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn flush_area_cache(&self, area_idx: usize) {
+        static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+        let x = LK.lock();
+
+        let data = {
+            let mut buf = self.cache.buf[area_idx].write();
+            let data = mem::take(&mut buf[0]);
+            buf[1] = data.clone();
+            data
+        };
+
+        pnk!(self.update_batch(data, area_idx));
     }
 
     #[inline(always)]
@@ -290,17 +309,8 @@ impl Engine for RocksEngine {
     #[inline(always)]
     #[allow(unused_variables)]
     fn flush_cache(&self) {
-        static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-        let x = LK.lock();
-
         for i in 0..=DATA_SET_NUM {
-            let data = {
-                let mut buf = self.cache.buf[i].write();
-                let data = mem::take(&mut buf[0]);
-                buf[1] = data.clone();
-                data
-            };
-            pnk!(self.update_batch(data, i));
+            self.flush_area_cache(i);
         }
     }
 
@@ -644,14 +654,14 @@ fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     cfg.create_missing_column_families(true);
     cfg.set_prefix_extractor(SliceTransform::create_fixed_prefix(size_of::<Pre>()));
     cfg.increase_parallelism(cpunum);
-    // cfg.set_num_levels(7);
-    cfg.set_max_open_files(160 * 1024);
+    cfg.set_num_levels(7);
+    cfg.set_max_open_files(1000_0000);
     cfg.set_allow_mmap_writes(true);
     cfg.set_allow_mmap_reads(true);
     // cfg.set_use_direct_reads(true);
     // cfg.set_use_direct_io_for_flush_and_compaction(true);
-    // cfg.set_write_buffer_size(512 * MB as usize);
-    // cfg.set_max_write_buffer_number(3);
+    cfg.set_write_buffer_size(512 * MB as usize);
+    cfg.set_max_write_buffer_number(3);
 
     #[cfg(feature = "compress")]
     {
