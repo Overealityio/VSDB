@@ -4,6 +4,7 @@ use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawBytes,
     RawKey, RawValue, VersionID, INITIAL_BRANCH_ID, MB, PREFIX_SIZ, RESERVED_ID_CNT,
 };
+use ahash::AHashMap as HashMap;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use rocksdb::{
@@ -12,7 +13,6 @@ use rocksdb::{
 };
 use ruc::*;
 use std::{
-    collections::HashMap,
     mem::{self, size_of},
     ops::{Bound, RangeBounds},
     sync::{
