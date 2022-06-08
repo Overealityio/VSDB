@@ -8,17 +8,17 @@ pub(crate) mod engines;
 #[cfg(feature = "hash")]
 pub(crate) mod utils;
 
-use {
-    engines::Engine,
-    once_cell::sync::Lazy,
-    parking_lot::Mutex,
-    ruc::*,
-    std::{
-        env, fs,
-        mem::size_of,
-        sync::atomic::{AtomicBool, Ordering},
-        thread,
-    },
+use engines::Engine;
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+use ruc::*;
+use std::{
+    env, fs,
+    mem::size_of,
+    sync::atomic::{AtomicBool, Ordering},
+    thread,
+    thread::sleep,
+    time::Duration,
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -79,8 +79,8 @@ static VSDB_CUSTOM_DIR: Lazy<String> = Lazy::new(|| {
     d
 });
 
-// flush in-memory cache to disk every N milliseconds
-const CACHE_FLUSH_ITV_MS: u64 = 1;
+// flush in-memory cache to disk every N microseconds(1 / 1_000_000 seconds)
+const CACHE_FLUSH_ITV_MS: u64 = 100; // 1 / 10000 seconds
 
 #[cfg(any(
     feature = "rocks_engine",
@@ -90,9 +90,9 @@ const CACHE_FLUSH_ITV_MS: u64 = 1;
 pub(crate) static VSDB: Lazy<VsDB<engines::RocksDB>> = Lazy::new(|| {
     let res = pnk!(VsDB::new());
     thread::spawn(|| {
-        sleep_ms!(1000);
+        sleep_ms!(1);
         loop {
-            sleep_ms!(CACHE_FLUSH_ITV_MS);
+            sleep(Duration::from_micros(CACHE_FLUSH_ITV_MS));
             VSDB.db.flush_cache();
         }
     });
@@ -103,9 +103,9 @@ pub(crate) static VSDB: Lazy<VsDB<engines::RocksDB>> = Lazy::new(|| {
 pub(crate) static VSDB: Lazy<VsDB<engines::Sled>> = Lazy::new(|| {
     let res = pnk!(VsDB::new());
     thread::spawn(|| {
-        sleep_ms!(1000);
+        sleep_ms!(1);
         loop {
-            sleep_ms!(CACHE_FLUSH_ITV_MS);
+            sleep(Duration::from_micros(CACHE_FLUSH_ITV_MS));
             VSDB.db.flush_cache();
         }
     });
