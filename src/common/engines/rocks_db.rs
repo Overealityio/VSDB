@@ -189,31 +189,26 @@ impl Engine for RocksEngine {
     }
 
     // 'step 1' and 'step 2' is not atomic in multi-threads scene,
-    // so we use a `Mutex` lock for thread safe.
+    // so we should get the 'write' lock for thread safe.
     #[allow(unused_variables)]
     fn alloc_prefix(&self) -> Pre {
-        static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-        let x = LK.lock();
-
         // step 1
-        let buf = self.cache.buf[DATA_SET_NUM].read();
+        let mut buf = self.cache.buf[DATA_SET_NUM].write();
 
         let ret = if let Some(v) = buf[0]
             .get(&self.prefix_allocator.key[..])
             .or_else(|| buf[1].get(&self.prefix_allocator.key[..]))
         {
             let ret = crate::parse_prefix!(v.as_ref().unwrap());
-            drop(buf);
             ret
         } else {
-            drop(buf);
             crate::parse_prefix!(
                 self.meta.get(self.prefix_allocator.key).unwrap().unwrap()
             )
         };
 
         // step 2
-        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+        buf[0].insert(
             self.prefix_allocator.key.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -222,24 +217,19 @@ impl Engine for RocksEngine {
     }
 
     // 'step 1' and 'step 2' is not atomic in multi-threads scene,
-    // so we use a `Mutex` lock for thread safe.
+    // so we should get the 'write' lock for thread safe.
     #[allow(unused_variables)]
     fn alloc_branch_id(&self) -> BranchID {
-        static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-        let x = LK.lock();
-
         // step 1
-        let buf = self.cache.buf[DATA_SET_NUM].read();
+        let mut buf = self.cache.buf[DATA_SET_NUM].write();
 
         let ret = if let Some(v) = buf[0]
             .get(&META_KEY_BRANCH_ID[..])
             .or_else(|| buf[1].get(&META_KEY_BRANCH_ID[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), BranchID);
-            drop(buf);
             ret
         } else {
-            drop(buf);
             crate::parse_int!(
                 self.meta.get(META_KEY_BRANCH_ID).unwrap().unwrap(),
                 BranchID
@@ -247,7 +237,7 @@ impl Engine for RocksEngine {
         };
 
         // step 2
-        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+        buf[0].insert(
             META_KEY_BRANCH_ID.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -256,24 +246,19 @@ impl Engine for RocksEngine {
     }
 
     // 'step 1' and 'step 2' is not atomic in multi-threads scene,
-    // so we use a `Mutex` lock for thread safe.
+    // so we should get the 'write' lock for thread safe.
     #[allow(unused_variables)]
     fn alloc_version_id(&self) -> VersionID {
-        static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-        let x = LK.lock();
-
         // step 1
-        let buf = self.cache.buf[DATA_SET_NUM].read();
+        let mut buf = self.cache.buf[DATA_SET_NUM].write();
 
         let ret = if let Some(v) = buf[0]
             .get(&META_KEY_VERSION_ID[..])
             .or_else(|| buf[1].get(&META_KEY_VERSION_ID[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), VersionID);
-            drop(buf);
             ret
         } else {
-            drop(buf);
             crate::parse_int!(
                 self.meta.get(META_KEY_VERSION_ID).unwrap().unwrap(),
                 VersionID
@@ -281,7 +266,7 @@ impl Engine for RocksEngine {
         };
 
         // step 2
-        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+        buf[0].insert(
             META_KEY_VERSION_ID.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
