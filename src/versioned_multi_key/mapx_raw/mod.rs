@@ -33,13 +33,13 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: &[&[u8]], value: &[u8]) -> Result<Option<RawValue>> {
+    pub fn insert(&mut self, key: &[&[u8]], value: &[u8]) -> Result<Option<RawValue>> {
         self.inner.insert(key, value).c(d!())
     }
 
     #[inline(always)]
     pub fn insert_by_branch(
-        &self,
+        &mut self,
         key: &[&[u8]],
         value: &[u8],
         branch_name: BranchName,
@@ -49,13 +49,13 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub fn remove(&self, key: &[&[u8]]) -> Result<Option<RawValue>> {
+    pub fn remove(&mut self, key: &[&[u8]]) -> Result<Option<RawValue>> {
         self.inner.remove(key).c(d!())
     }
 
     #[inline(always)]
     pub fn remove_by_branch(
-        &self,
+        &mut self,
         key: &[&[u8]],
         branch_name: BranchName,
     ) -> Result<Option<RawValue>> {
@@ -69,12 +69,12 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub fn get_mut<'a>(&'a self, key: &'a [&'a [u8]]) -> Option<ValueMut<'a>> {
+    pub fn get_mut<'a>(&'a mut self, key: &'a [&'a [u8]]) -> Option<ValueMut<'a>> {
         self.get(key).map(move |v| ValueMut::new(self, key, v))
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a [&'a [u8]]) -> Entry<'a> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a [&'a [u8]]) -> Entry<'a> {
         Entry { key, hdr: self }
     }
 
@@ -215,13 +215,13 @@ impl MapxRawMkVs {
 
 impl VsMgmt for MapxRawMkVs {
     #[inline(always)]
-    fn version_create(&self, version_name: VersionName) -> Result<()> {
+    fn version_create(&mut self, version_name: VersionName) -> Result<()> {
         self.inner.version_create(version_name.0).c(d!())
     }
 
     #[inline(always)]
     fn version_create_by_branch(
-        &self,
+        &mut self,
         version_name: VersionName,
         branch_name: BranchName,
     ) -> Result<()> {
@@ -260,12 +260,12 @@ impl VsMgmt for MapxRawMkVs {
     }
 
     #[inline(always)]
-    fn version_pop(&self) -> Result<()> {
+    fn version_pop(&mut self) -> Result<()> {
         self.inner.version_pop().c(d!())
     }
 
     #[inline(always)]
-    fn version_pop_by_branch(&self, branch_name: BranchName) -> Result<()> {
+    fn version_pop_by_branch(&mut self, branch_name: BranchName) -> Result<()> {
         self.inner
             .branch_get_id_by_name(branch_name)
             .c(d!("branch not found"))
@@ -273,7 +273,7 @@ impl VsMgmt for MapxRawMkVs {
     }
 
     #[inline(always)]
-    unsafe fn version_rebase(&self, base_version: VersionName) -> Result<()> {
+    unsafe fn version_rebase(&mut self, base_version: VersionName) -> Result<()> {
         self.inner
             .version_get_id_by_name(base_version)
             .c(d!())
@@ -282,7 +282,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     unsafe fn version_rebase_by_branch(
-        &self,
+        &mut self,
         base_version: VersionName,
         branch_name: BranchName,
     ) -> Result<()> {
@@ -329,12 +329,15 @@ impl VsMgmt for MapxRawMkVs {
     }
 
     #[inline(always)]
-    fn version_clean_up_globally(&self) -> Result<()> {
+    fn version_clean_up_globally(&mut self) -> Result<()> {
         self.inner.version_clean_up_globally().c(d!())
     }
 
     #[inline(always)]
-    unsafe fn version_revert_globally(&self, version_name: VersionName) -> Result<()> {
+    unsafe fn version_revert_globally(
+        &mut self,
+        version_name: VersionName,
+    ) -> Result<()> {
         self.inner
             .version_get_id_by_name(version_name)
             .c(d!("version not found"))
@@ -343,7 +346,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     fn branch_create(
-        &self,
+        &mut self,
         branch_name: BranchName,
         version_name: VersionName,
         force: bool,
@@ -355,7 +358,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     fn branch_create_by_base_branch(
-        &self,
+        &mut self,
         branch_name: BranchName,
         version_name: VersionName,
         base_branch_name: ParentBranchName,
@@ -378,7 +381,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     fn branch_create_by_base_branch_version(
-        &self,
+        &mut self,
         branch_name: BranchName,
         version_name: VersionName,
         base_branch_name: ParentBranchName,
@@ -406,7 +409,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     unsafe fn branch_create_without_new_version(
-        &self,
+        &mut self,
         branch_name: BranchName,
         force: bool,
     ) -> Result<()> {
@@ -417,7 +420,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     unsafe fn branch_create_by_base_branch_without_new_version(
-        &self,
+        &mut self,
         branch_name: BranchName,
         base_branch_name: ParentBranchName,
         force: bool,
@@ -438,7 +441,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     unsafe fn branch_create_by_base_branch_version_without_new_version(
-        &self,
+        &mut self,
         branch_name: BranchName,
         base_branch_name: ParentBranchName,
         base_version_name: VersionName,
@@ -479,7 +482,7 @@ impl VsMgmt for MapxRawMkVs {
     }
 
     #[inline(always)]
-    fn branch_remove(&self, branch_name: BranchName) -> Result<()> {
+    fn branch_remove(&mut self, branch_name: BranchName) -> Result<()> {
         if let Some(branch_id) = self.inner.branch_get_id_by_name(branch_name) {
             self.inner.branch_remove(branch_id).c(d!())
         } else {
@@ -489,7 +492,7 @@ impl VsMgmt for MapxRawMkVs {
 
     /// Clean up all other branches not in the list.
     #[inline(always)]
-    fn branch_keep_only(&self, branch_names: &[BranchName]) -> Result<()> {
+    fn branch_keep_only(&mut self, branch_names: &[BranchName]) -> Result<()> {
         let br_ids = branch_names
             .iter()
             .copied()
@@ -505,7 +508,7 @@ impl VsMgmt for MapxRawMkVs {
     }
 
     #[inline(always)]
-    fn branch_truncate(&self, branch_name: BranchName) -> Result<()> {
+    fn branch_truncate(&mut self, branch_name: BranchName) -> Result<()> {
         self.inner
             .branch_get_id_by_name(branch_name)
             .c(d!("branch not found"))
@@ -514,7 +517,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     fn branch_truncate_to(
-        &self,
+        &mut self,
         branch_name: BranchName,
         last_version_name: VersionName,
     ) -> Result<()> {
@@ -532,7 +535,7 @@ impl VsMgmt for MapxRawMkVs {
     }
 
     #[inline(always)]
-    fn branch_pop_version(&self, branch_name: BranchName) -> Result<()> {
+    fn branch_pop_version(&mut self, branch_name: BranchName) -> Result<()> {
         self.inner
             .branch_get_id_by_name(branch_name)
             .c(d!("branch not found"))
@@ -541,7 +544,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     fn branch_merge_to(
-        &self,
+        &mut self,
         branch_name: BranchName,
         target_branch_name: BranchName,
     ) -> Result<()> {
@@ -559,7 +562,7 @@ impl VsMgmt for MapxRawMkVs {
 
     #[inline(always)]
     unsafe fn branch_merge_to_force(
-        &self,
+        &mut self,
         branch_name: BranchName,
         target_branch_name: BranchName,
     ) -> Result<()> {
@@ -611,20 +614,20 @@ impl VsMgmt for MapxRawMkVs {
     }
 
     #[inline(always)]
-    fn prune(&self, reserved_ver_num: Option<usize>) -> Result<()> {
+    fn prune(&mut self, reserved_ver_num: Option<usize>) -> Result<()> {
         self.inner.prune(reserved_ver_num).c(d!())
     }
 }
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ValueMut<'a> {
-    hdr: &'a MapxRawMkVs,
+    hdr: &'a mut MapxRawMkVs,
     key: &'a [&'a [u8]],
     value: RawValue,
 }
 
 impl<'a> ValueMut<'a> {
-    fn new(hdr: &'a MapxRawMkVs, key: &'a [&'a [u8]], value: RawValue) -> Self {
+    fn new(hdr: &'a mut MapxRawMkVs, key: &'a [&'a [u8]], value: RawValue) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -649,8 +652,8 @@ impl<'a> DerefMut for ValueMut<'a> {
 }
 
 pub struct Entry<'a> {
+    hdr: &'a mut MapxRawMkVs,
     key: &'a [&'a [u8]],
-    hdr: &'a MapxRawMkVs,
 }
 
 impl<'a> Entry<'a> {

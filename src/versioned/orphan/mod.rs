@@ -53,17 +53,17 @@ impl<T: ValueEnDe> OrphanVs<T> {
     /// - **NEVER** do this:
     ///     - `*(&mut <Orphan>) = Orphan::new(...)`
     ///     - OR you will loss the 'versioned' ability of this object
-    pub fn get_mut(&self) -> Option<ValueMut<'_, T>> {
+    pub fn get_mut(&mut self) -> Option<ValueMut<'_, T>> {
         self.get_value().map(|value| ValueMut { hdr: self, value })
     }
 
     #[inline(always)]
-    pub fn set_value(&self, v: T) -> Result<Option<T>> {
+    pub fn set_value(&mut self, v: T) -> Result<Option<T>> {
         self.set_value_ref(&v).c(d!())
     }
 
     #[inline(always)]
-    pub fn set_value_ref(&self, v: &T) -> Result<Option<T>> {
+    pub fn set_value_ref(&mut self, v: &T) -> Result<Option<T>> {
         self.inner.insert_ref(&[], v).c(d!())
     }
 
@@ -74,7 +74,7 @@ impl<T: ValueEnDe> OrphanVs<T> {
 
     #[inline(always)]
     pub fn set_value_by_branch(
-        &self,
+        &mut self,
         v: T,
         branch_name: BranchName,
     ) -> Result<Option<T>> {
@@ -83,7 +83,7 @@ impl<T: ValueEnDe> OrphanVs<T> {
 
     #[inline(always)]
     pub fn set_value_ref_by_branch(
-        &self,
+        &mut self,
         v: &T,
         branch_name: BranchName,
     ) -> Result<Option<T>> {
@@ -119,7 +119,7 @@ pub struct ValueMut<'a, T>
 where
     T: ValueEnDe,
 {
-    hdr: &'a OrphanVs<T>,
+    hdr: &'a mut OrphanVs<T>,
     value: T,
 }
 

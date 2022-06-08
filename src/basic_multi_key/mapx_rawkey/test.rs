@@ -5,7 +5,7 @@ use ruc::*;
 
 #[test]
 fn test_insert() {
-    let hdr = MapxRawKeyMk::new(2);
+    let mut hdr = MapxRawKeyMk::new(2);
     assert_eq!(2, hdr.key_size());
     let max = 500;
     (0..max)
@@ -32,7 +32,7 @@ fn test_insert() {
 fn test_valueende() {
     let cnt = 500;
     let dehdr = {
-        let hdr: MapxRawKeyMk<Box<[u8]>> = MapxRawKeyMk::new(2);
+        let mut hdr: MapxRawKeyMk<Box<[u8]>> = MapxRawKeyMk::new(2);
         let max = 500;
         (0..max)
             .map(|i: usize| (i.to_be_bytes(), <usize as ValueEnDe>::encode(&i)))
@@ -43,7 +43,7 @@ fn test_valueende() {
         crate::vsdb_flush();
         <MapxRawKeyMk<Box<[u8]>> as ValueEnDe>::encode(&hdr)
     };
-    let reloaded = pnk!(<MapxRawKeyMk<Box<[u8]>> as ValueEnDe>::decode(&dehdr));
+    let mut reloaded = pnk!(<MapxRawKeyMk<Box<[u8]>> as ValueEnDe>::decode(&dehdr));
 
     (0..cnt)
         .map(|i: usize| (i, i.to_be_bytes()))
@@ -57,7 +57,7 @@ fn test_valueende() {
 
 #[test]
 fn test_iter_op() {
-    let hdr = MapxRawKeyMk::new(4);
+    let mut hdr = MapxRawKeyMk::new(4);
     assert!(hdr.entry_ref(&[]).or_insert_ref(&777).is_err());
     assert!(
         hdr.entry_ref(&[&[11], &[12], &[13], &[14]])
@@ -80,7 +80,7 @@ fn test_iter_op() {
 
 #[test]
 fn test_iter_op_with_key_prefix() {
-    let hdr = MapxRawKeyMk::new(4);
+    let mut hdr = MapxRawKeyMk::new(4);
     assert!(hdr.entry_ref(&[]).or_insert_ref(&777).is_err());
     assert!(
         hdr.entry_ref(&[&[11], &[12], &[13], &[14]])

@@ -5,7 +5,7 @@ use ruc::*;
 
 #[test]
 fn test_insert() {
-    let hdr: MapxDk<usize, usize, usize> = MapxDk::new();
+    let mut hdr: MapxDk<usize, usize, usize> = MapxDk::new();
     assert_eq!(2, hdr.key_size());
     let max = 500;
     (0..max)
@@ -33,7 +33,7 @@ fn test_insert() {
 fn test_valueende() {
     let cnt = 500;
     let dehdr = {
-        let hdr: MapxDk<usize, usize, usize> = MapxDk::new();
+        let mut hdr: MapxDk<usize, usize, usize> = MapxDk::new();
         let max = 500;
         (0..max).map(|i: usize| (i, i)).for_each(|(key, value)| {
             let key = &(&key, &key);
@@ -42,7 +42,7 @@ fn test_valueende() {
         crate::vsdb_flush();
         <MapxDk<usize, usize, usize> as ValueEnDe>::encode(&hdr)
     };
-    let reloaded: MapxDk<usize, usize, usize> =
+    let mut reloaded: MapxDk<usize, usize, usize> =
         pnk!(<MapxDk<usize, usize, usize> as ValueEnDe>::decode(&dehdr));
 
     (0..cnt).map(|i: usize| i).for_each(|i| {

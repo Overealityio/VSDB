@@ -63,12 +63,12 @@ where
     }
 
     #[inline(always)]
-    pub fn get_mut<'a>(&'a self, key: &'a K) -> Option<ValueMut<'a, K, V>> {
+    pub fn get_mut<'a>(&'a mut self, key: &'a K) -> Option<ValueMut<'a, K, V>> {
         self.get(key).map(move |v| ValueMut::new(self, key, v))
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a K) -> Entry<'a, K, V> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a K) -> Entry<'a, K, V> {
         Entry { key, hdr: self }
     }
 
@@ -97,12 +97,12 @@ where
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: K, value: V) -> Result<Option<V>> {
+    pub fn insert(&mut self, key: K, value: V) -> Result<Option<V>> {
         self.insert_ref(&key, &value).c(d!())
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, key: &K, value: &V) -> Result<Option<V>> {
+    pub fn insert_ref(&mut self, key: &K, value: &V) -> Result<Option<V>> {
         self.inner.insert_ref(&key.encode(), value).c(d!())
     }
 
@@ -152,7 +152,7 @@ where
     }
 
     #[inline(always)]
-    pub fn remove(&self, key: &K) -> Result<Option<V>> {
+    pub fn remove(&mut self, key: &K) -> Result<Option<V>> {
         self.inner.remove(&key.encode()).c(d!())
     }
 
@@ -192,7 +192,7 @@ where
 
     #[inline(always)]
     pub fn insert_by_branch(
-        &self,
+        &mut self,
         key: K,
         value: V,
         branch_name: BranchName,
@@ -202,7 +202,7 @@ where
 
     #[inline(always)]
     pub fn insert_ref_by_branch(
-        &self,
+        &mut self,
         key: &K,
         value: &V,
         branch_name: BranchName,
@@ -261,7 +261,7 @@ where
 
     #[inline(always)]
     pub fn remove_by_branch(
-        &self,
+        &mut self,
         key: &K,
         branch_name: BranchName,
     ) -> Result<Option<V>> {
@@ -452,7 +452,7 @@ where
     K: KeyEnDe,
     V: ValueEnDe,
 {
-    hdr: &'a MapxVs<K, V>,
+    hdr: &'a mut MapxVs<K, V>,
     key: &'a K,
     value: V,
 }
@@ -462,7 +462,7 @@ where
     K: KeyEnDe,
     V: ValueEnDe,
 {
-    fn new(hdr: &'a MapxVs<K, V>, key: &'a K, value: V) -> Self {
+    fn new(hdr: &'a mut MapxVs<K, V>, key: &'a K, value: V) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -503,8 +503,8 @@ where
     K: KeyEnDe,
     V: ValueEnDe,
 {
+    hdr: &'a mut MapxVs<K, V>,
     key: &'a K,
-    hdr: &'a MapxVs<K, V>,
 }
 
 impl<'a, K, V> Entry<'a, K, V>

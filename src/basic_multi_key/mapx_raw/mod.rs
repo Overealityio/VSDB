@@ -61,7 +61,7 @@ impl MapxRawMk {
     }
 
     #[inline(always)]
-    pub fn get_mut<'a>(&'a self, key: &'a [&'a [u8]]) -> Option<ValueMut<'a>> {
+    pub fn get_mut<'a>(&'a mut self, key: &'a [&'a [u8]]) -> Option<ValueMut<'a>> {
         self.get(key).map(move |v| ValueMut::new(self, key, v))
     }
 
@@ -76,12 +76,12 @@ impl MapxRawMk {
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a [&'a [u8]]) -> Entry<'a> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a [&'a [u8]]) -> Entry<'a> {
         Entry { key, hdr: self }
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: &[&[u8]], value: &[u8]) -> Result<Option<RawValue>> {
+    pub fn insert(&mut self, key: &[&[u8]], value: &[u8]) -> Result<Option<RawValue>> {
         if key.len() != self.key_size {
             return Err(eg!("Incorrect key size"));
         }
@@ -115,7 +115,7 @@ impl MapxRawMk {
 
     /// Support batch removal.
     #[inline(always)]
-    pub fn remove(&self, key: &[&[u8]]) -> Result<Option<RawValue>> {
+    pub fn remove(&mut self, key: &[&[u8]]) -> Result<Option<RawValue>> {
         // Support batch removal from key path.
         if key.len() > self.key_size {
             return Err(eg!("Incorrect key size"));
@@ -145,7 +145,7 @@ impl MapxRawMk {
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 
@@ -318,13 +318,13 @@ impl MapxRawMk {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ValueMut<'a> {
-    hdr: &'a MapxRawMk,
+    hdr: &'a mut MapxRawMk,
     key: &'a [&'a [u8]],
     value: RawValue,
 }
 
 impl<'a> ValueMut<'a> {
-    fn new(hdr: &'a MapxRawMk, key: &'a [&'a [u8]], value: RawValue) -> Self {
+    fn new(hdr: &'a mut MapxRawMk, key: &'a [&'a [u8]], value: RawValue) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -349,8 +349,8 @@ impl<'a> DerefMut for ValueMut<'a> {
 }
 
 pub struct Entry<'a> {
+    hdr: &'a mut MapxRawMk,
     key: &'a [&'a [u8]],
-    hdr: &'a MapxRawMk,
 }
 
 impl<'a> Entry<'a> {

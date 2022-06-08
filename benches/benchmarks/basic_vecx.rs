@@ -13,7 +13,7 @@ fn read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let i = AtomicUsize::new(0);
-    let db = Vecx::new();
+    let mut db = Vecx::new();
 
     group.bench_function(" write ", |b| {
         b.iter(|| {
@@ -38,7 +38,7 @@ fn random_read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let mut rng = rand::thread_rng();
-    let db = Vecx::new();
+    let mut db = Vecx::new();
     group.bench_function(" random write ", |b| {
         b.iter(|| {
             let n = rng.gen::<usize>();

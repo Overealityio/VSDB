@@ -59,25 +59,28 @@ where
 
     #[inline(always)]
     pub fn get_mut<'a>(
-        &'a self,
+        &'a mut self,
         key: &'a (&'a K1, &'a K2),
     ) -> Option<ValueMut<'a, K1, K2, V>> {
         self.get(key).map(move |v| ValueMut::new(self, key, v))
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a (&'a K1, &'a K2)) -> Entry<'a, K1, K2, V> {
+    pub fn entry_ref<'a>(
+        &'a mut self,
+        key: &'a (&'a K1, &'a K2),
+    ) -> Entry<'a, K1, K2, V> {
         Entry { key, hdr: self }
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: (K1, K2), value: V) -> Result<Option<V>> {
+    pub fn insert(&mut self, key: (K1, K2), value: V) -> Result<Option<V>> {
         let key = (&key.0, &key.1);
         self.insert_ref(&key, &value).c(d!())
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, key: &(&K1, &K2), value: &V) -> Result<Option<V>> {
+    pub fn insert_ref(&mut self, key: &(&K1, &K2), value: &V) -> Result<Option<V>> {
         let key = Self::encode_key(key);
         self.inner
             .insert(&keyref(&key), &value.encode())
@@ -93,7 +96,7 @@ where
 
     /// Support batch removal.
     #[inline(always)]
-    pub fn remove(&self, key: &(&K1, Option<&K2>)) -> Result<Option<V>> {
+    pub fn remove(&mut self, key: &(&K1, Option<&K2>)) -> Result<Option<V>> {
         let k1 = key.0.encode();
         let k2 = key.1.map(|k2| k2.encode());
         let key = if let Some(k2) = k2.as_ref() {
@@ -122,7 +125,7 @@ where
 
     #[inline(always)]
     pub fn insert_by_branch(
-        &self,
+        &mut self,
         key: (K1, K2),
         value: V,
         branch_name: BranchName,
@@ -133,7 +136,7 @@ where
 
     #[inline(always)]
     pub fn insert_ref_by_branch(
-        &self,
+        &mut self,
         key: &(&K1, &K2),
         value: &V,
         branch_name: BranchName,
@@ -159,7 +162,7 @@ where
     /// Support batch removal.
     #[inline(always)]
     pub fn remove_by_branch(
-        &self,
+        &mut self,
         key: &(&K1, Option<&K2>),
         branch_name: BranchName,
     ) -> Result<Option<V>> {
@@ -376,7 +379,7 @@ where
     K2: KeyEnDe,
     V: ValueEnDe,
 {
-    hdr: &'a MapxDkVs<K1, K2, V>,
+    hdr: &'a mut MapxDkVs<K1, K2, V>,
     key: &'a (&'a K1, &'a K2),
     value: V,
 }
@@ -387,7 +390,11 @@ where
     K2: KeyEnDe,
     V: ValueEnDe,
 {
-    fn new(hdr: &'a MapxDkVs<K1, K2, V>, key: &'a (&'a K1, &'a K2), value: V) -> Self {
+    fn new(
+        hdr: &'a mut MapxDkVs<K1, K2, V>,
+        key: &'a (&'a K1, &'a K2),
+        value: V,
+    ) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -432,8 +439,8 @@ where
     K2: KeyEnDe,
     V: ValueEnDe,
 {
+    hdr: &'a mut MapxDkVs<K1, K2, V>,
     key: &'a (&'a K1, &'a K2),
-    hdr: &'a MapxDkVs<K1, K2, V>,
 }
 
 impl<'a, K1, K2, V> Entry<'a, K1, K2, V>

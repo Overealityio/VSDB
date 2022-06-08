@@ -17,7 +17,7 @@ fn read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let i = AtomicUsize::new(0);
-    let db = MapxOrdRawKeyVs::new();
+    let mut db = MapxOrdRawKeyVs::new();
     db.version_create(VersionName(b"version0")).unwrap();
 
     group.bench_function(" write ", |b| {
@@ -47,7 +47,7 @@ fn random_read_write(c: &mut Criterion) {
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
-    let db = MapxOrdRawKeyVs::new();
+    let mut db = MapxOrdRawKeyVs::new();
     db.version_create(VersionName(b"version0")).unwrap();
 
     group.bench_function(" random write ", |b| {
@@ -76,7 +76,7 @@ fn version_read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let i = AtomicUsize::new(0);
-    let db = MapxOrdRawKeyVs::new();
+    let mut db = MapxOrdRawKeyVs::new();
 
     group.bench_function(" version write ", |b| {
         b.iter(|| {
@@ -110,7 +110,7 @@ fn version_random_read_write(c: &mut Criterion) {
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
-    let db = MapxOrdRawKeyVs::new();
+    let mut db = MapxOrdRawKeyVs::new();
 
     group.bench_function(" version random write ", |b| {
         b.iter(|| {
@@ -145,7 +145,7 @@ fn branch_version_read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let i = AtomicUsize::new(0);
-    let db = MapxOrdRawKeyVs::new();
+    let mut db = MapxOrdRawKeyVs::new();
     db.version_create(VersionName(b"version0")).unwrap();
 
     group.bench_function(" branch version write ", |b| {
@@ -178,7 +178,7 @@ fn branch_version_random_read_write(c: &mut Criterion) {
 
     let mut keys = vec![];
     let mut rng = rand::thread_rng();
-    let db = MapxOrdRawKeyVs::new();
+    let mut db = MapxOrdRawKeyVs::new();
     db.version_create(VersionName(b"version0")).unwrap();
 
     group.bench_function(" branch version random write ", |b| {

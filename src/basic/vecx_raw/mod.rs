@@ -66,11 +66,11 @@ impl VecxRaw {
     }
 
     #[inline(always)]
-    pub fn get_mut(&self, idx: usize) -> Option<ValueMut<'_, u64>> {
+    pub fn get_mut(&mut self, idx: usize) -> Option<ValueMut<'_, u64>> {
         let idx = idx as u64;
         self.inner
             .get(&idx)
-            .map(|v| ValueMut::new(&self.inner, idx, v))
+            .map(|v| ValueMut::new(&mut self.inner, idx, v))
     }
 
     #[inline(always)]
@@ -90,22 +90,22 @@ impl VecxRaw {
     }
 
     #[inline(always)]
-    pub fn push(&self, v: RawValue) {
+    pub fn push(&mut self, v: RawValue) {
         self.push_ref(&v)
     }
 
     #[inline(always)]
-    pub fn push_ref(&self, v: &[u8]) {
+    pub fn push_ref(&mut self, v: &[u8]) {
         self.inner.insert_ref(&(self.len() as u64), v);
     }
 
     #[inline(always)]
-    pub fn insert(&self, idx: usize, v: RawValue) {
+    pub fn insert(&mut self, idx: usize, v: RawValue) {
         self.insert_ref(idx, &v)
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, idx: usize, v: &[u8]) {
+    pub fn insert_ref(&mut self, idx: usize, v: &[u8]) {
         let idx = idx as u64;
         match (self.len() as u64).cmp(&idx) {
             Ordering::Greater => {
@@ -126,13 +126,13 @@ impl VecxRaw {
     }
 
     #[inline(always)]
-    pub fn pop(&self) -> Option<RawValue> {
+    pub fn pop(&mut self) -> Option<RawValue> {
         alt!(self.is_empty(), return None);
         self.inner.remove(&(self.len() as u64 - 1))
     }
 
     #[inline(always)]
-    pub fn remove(&self, idx: usize) -> RawValue {
+    pub fn remove(&mut self, idx: usize) -> RawValue {
         let idx = idx as u64;
         if !self.is_empty() && idx < self.len() as u64 {
             let last_idx = self.len() as u64 - 1;
@@ -147,7 +147,7 @@ impl VecxRaw {
     }
 
     #[inline(always)]
-    pub fn swap_remove(&self, idx: usize) -> RawValue {
+    pub fn swap_remove(&mut self, idx: usize) -> RawValue {
         let idx = idx as u64;
         if !self.is_empty() && idx < self.len() as u64 {
             let last_idx = self.len() as u64 - 1;
@@ -160,12 +160,12 @@ impl VecxRaw {
         panic!("out of index");
     }
 
-    pub fn update(&self, idx: usize, v: RawValue) -> Option<RawValue> {
+    pub fn update(&mut self, idx: usize, v: RawValue) -> Option<RawValue> {
         self.update_ref(idx, &v)
     }
 
     #[inline(always)]
-    pub fn update_ref(&self, idx: usize, v: &[u8]) -> Option<RawValue> {
+    pub fn update_ref(&mut self, idx: usize, v: &[u8]) -> Option<RawValue> {
         if idx < self.len() {
             return self.inner.insert_ref(&(idx as u64), v);
         }
@@ -180,7 +180,7 @@ impl VecxRaw {
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 }

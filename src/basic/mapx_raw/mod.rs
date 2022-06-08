@@ -64,7 +64,7 @@ impl MapxRaw {
     }
 
     #[inline(always)]
-    pub fn get_mut<'a>(&'a self, key: &'a [u8]) -> Option<ValueMut<'a>> {
+    pub fn get_mut<'a>(&'a mut self, key: &'a [u8]) -> Option<ValueMut<'a>> {
         self.inner
             .get(key)
             .map(move |v| ValueMut::new(self, key, v))
@@ -96,7 +96,7 @@ impl MapxRaw {
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a [u8]) -> EntryRef<'a> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a [u8]) -> EntryRef<'a> {
         EntryRef { key, hdr: self }
     }
 
@@ -115,30 +115,30 @@ impl MapxRaw {
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: &[u8], value: &[u8]) -> Option<RawValue> {
+    pub fn insert(&mut self, key: &[u8], value: &[u8]) -> Option<RawValue> {
         self.inner.insert(key, value)
     }
 
     #[inline(always)]
-    pub fn remove(&self, key: &[u8]) -> Option<RawValue> {
+    pub fn remove(&mut self, key: &[u8]) -> Option<RawValue> {
         self.inner.remove(key)
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 }
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ValueMut<'a> {
-    hdr: &'a MapxRaw,
+    hdr: &'a mut MapxRaw,
     key: &'a [u8],
     value: RawValue,
 }
 
 impl<'a> ValueMut<'a> {
-    fn new(hdr: &'a MapxRaw, key: &'a [u8], value: RawValue) -> Self {
+    fn new(hdr: &'a mut MapxRaw, key: &'a [u8], value: RawValue) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -165,7 +165,7 @@ impl<'a> DerefMut for ValueMut<'a> {
 
 pub struct EntryRef<'a> {
     key: &'a [u8],
-    hdr: &'a MapxRaw,
+    hdr: &'a mut MapxRaw,
 }
 
 impl<'a> EntryRef<'a> {
@@ -175,6 +175,7 @@ impl<'a> EntryRef<'a> {
         }
         pnk!(self.hdr.get_mut(self.key))
     }
+
     pub fn or_insert_ref_with<F>(self, f: F) -> ValueMut<'a>
     where
         F: FnOnce() -> RawValue,

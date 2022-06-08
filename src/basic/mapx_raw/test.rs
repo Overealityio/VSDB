@@ -5,7 +5,7 @@ use ruc::*;
 
 #[test]
 fn test_insert() {
-    let hdr = MapxRaw::new();
+    let mut hdr = MapxRaw::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i.to_be_bytes(), <usize as ValueEnDe>::encode(&(max + i))))
@@ -27,7 +27,7 @@ fn test_insert() {
 }
 #[test]
 fn test_len() {
-    let hdr = MapxRaw::new();
+    let mut hdr = MapxRaw::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i.to_be_bytes(), (max + i).to_be_bytes()))
@@ -46,7 +46,7 @@ fn test_len() {
 fn test_valueende() {
     let cnt = 500;
     let dehdr = {
-        let hdr = MapxRaw::new();
+        let mut hdr = MapxRaw::new();
         (0..cnt)
             .map(|i: usize| (i.to_be_bytes(), <usize as ValueEnDe>::encode(&i)))
             .for_each(|(key, value)| {
@@ -55,7 +55,7 @@ fn test_valueende() {
         crate::vsdb_flush();
         <MapxRaw as ValueEnDe>::encode(&hdr)
     };
-    let reloaded = pnk!(<MapxRaw as ValueEnDe>::decode(&dehdr));
+    let mut reloaded = pnk!(<MapxRaw as ValueEnDe>::decode(&dehdr));
     assert_eq!(cnt, reloaded.len());
     (0..cnt).map(|i: usize| i).for_each(|i| {
         let val = pnk!(<usize as ValueEnDe>::decode(&pnk!(
@@ -67,7 +67,7 @@ fn test_valueende() {
 
 #[test]
 fn test_iter() {
-    let hdr = MapxRaw::new();
+    let mut hdr = MapxRaw::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i.to_be_bytes(), i.to_be_bytes()))
@@ -82,7 +82,7 @@ fn test_iter() {
 
 #[test]
 fn test_first_last() {
-    let hdr = MapxRaw::new();
+    let mut hdr = MapxRaw::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i.to_be_bytes(), <usize as ValueEnDe>::encode(&i)))

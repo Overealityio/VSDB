@@ -74,10 +74,10 @@ impl<T: ValueEnDe> Vecx<T> {
     }
 
     #[inline(always)]
-    pub fn get_mut(&self, idx: usize) -> Option<ValueMut<'_, T>> {
+    pub fn get_mut(&mut self, idx: usize) -> Option<ValueMut<'_, T>> {
         let idx_bytes = (idx as u64).to_be_bytes();
         self.inner.get(&idx_bytes).map(|v| {
-            ValueMut::new(&self.inner, idx_bytes.to_vec().into_boxed_slice(), v)
+            ValueMut::new(&mut self.inner, idx_bytes.to_vec().into_boxed_slice(), v)
         })
     }
 
@@ -102,22 +102,22 @@ impl<T: ValueEnDe> Vecx<T> {
     }
 
     #[inline(always)]
-    pub fn push(&self, v: T) {
+    pub fn push(&mut self, v: T) {
         self.push_ref(&v)
     }
 
     #[inline(always)]
-    pub fn push_ref(&self, v: &T) {
+    pub fn push_ref(&mut self, v: &T) {
         self.inner.insert_ref(&(self.len() as u64).to_be_bytes(), v);
     }
 
     #[inline(always)]
-    pub fn insert(&self, idx: usize, v: T) {
+    pub fn insert(&mut self, idx: usize, v: T) {
         self.insert_ref(idx, &v)
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, idx: usize, v: &T) {
+    pub fn insert_ref(&mut self, idx: usize, v: &T) {
         let idx = idx as u64;
         match (self.len() as u64).cmp(&idx) {
             Ordering::Greater => {
@@ -143,13 +143,13 @@ impl<T: ValueEnDe> Vecx<T> {
     }
 
     #[inline(always)]
-    pub fn pop(&self) -> Option<T> {
+    pub fn pop(&mut self) -> Option<T> {
         alt!(self.is_empty(), return None);
         self.inner.remove(&(self.len() as u64 - 1).to_be_bytes())
     }
 
     #[inline(always)]
-    pub fn remove(&self, idx: usize) -> T {
+    pub fn remove(&mut self, idx: usize) -> T {
         let idx = idx as u64;
         if !self.is_empty() && idx < self.len() as u64 {
             let last_idx = self.len() as u64 - 1;
@@ -167,7 +167,7 @@ impl<T: ValueEnDe> Vecx<T> {
     }
 
     #[inline(always)]
-    pub fn swap_remove(&self, idx: usize) -> T {
+    pub fn swap_remove(&mut self, idx: usize) -> T {
         let idx = idx as u64;
         if !self.is_empty() && idx < self.len() as u64 {
             let last_idx = self.len() as u64 - 1;
@@ -180,12 +180,12 @@ impl<T: ValueEnDe> Vecx<T> {
         panic!("out of index");
     }
 
-    pub fn update(&self, idx: usize, v: T) -> Option<T> {
+    pub fn update(&mut self, idx: usize, v: T) -> Option<T> {
         self.update_ref(idx, &v)
     }
 
     #[inline(always)]
-    pub fn update_ref(&self, idx: usize, v: &T) -> Option<T> {
+    pub fn update_ref(&mut self, idx: usize, v: &T) -> Option<T> {
         if idx < self.len() {
             return self.inner.insert_ref(&(idx as u64).to_be_bytes(), v);
         }
@@ -200,7 +200,7 @@ impl<T: ValueEnDe> Vecx<T> {
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 }

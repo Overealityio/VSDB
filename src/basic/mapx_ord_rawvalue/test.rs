@@ -5,7 +5,7 @@ use ruc::*;
 
 #[test]
 fn test_insert() {
-    let hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
+    let mut hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i, (max + i).to_be_bytes()))
@@ -30,7 +30,7 @@ fn test_insert() {
 }
 #[test]
 fn test_len() {
-    let hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
+    let mut hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i, (max + i).to_be_bytes()))
@@ -49,7 +49,7 @@ fn test_len() {
 fn test_valueende() {
     let cnt = 500;
     let dehdr = {
-        let hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
+        let mut hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
         (0..cnt)
             .map(|i: usize| (i, <usize as ValueEnDe>::encode(&i)))
             .for_each(|(key, value)| {
@@ -58,7 +58,7 @@ fn test_valueende() {
         crate::vsdb_flush();
         <MapxOrdRawValue<usize> as ValueEnDe>::encode(&hdr)
     };
-    let reloaded = pnk!(<MapxOrdRawValue<usize> as ValueEnDe>::decode(&dehdr));
+    let mut reloaded = pnk!(<MapxOrdRawValue<usize> as ValueEnDe>::decode(&dehdr));
     assert_eq!(cnt, reloaded.len());
     (0..cnt).map(|i: usize| i).for_each(|i| {
         let val = pnk!(<usize as ValueEnDe>::decode(&pnk!(reloaded.get(&i))));
@@ -68,7 +68,7 @@ fn test_valueende() {
 
 #[test]
 fn test_iter() {
-    let hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
+    let mut hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i, i.to_be_bytes()))
@@ -83,7 +83,7 @@ fn test_iter() {
 
 #[test]
 fn test_first_last() {
-    let hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
+    let mut hdr: MapxOrdRawValue<usize> = MapxOrdRawValue::new();
     let max = 500;
     (0..max)
         .map(|i: usize| (i, <usize as ValueEnDe>::encode(&i)))

@@ -92,7 +92,7 @@ where
     }
 
     #[inline(always)]
-    pub fn get_mut(&self, key: &K) -> Option<ValueMut<'_, K>> {
+    pub fn get_mut(&mut self, key: &K) -> Option<ValueMut<'_, K>> {
         self.inner
             .get(&key.to_bytes())
             .map(|v| ValueMut::new(self, key.clone(), v))
@@ -128,32 +128,32 @@ where
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: K, value: RawValue) -> Option<RawValue> {
+    pub fn insert(&mut self, key: K, value: RawValue) -> Option<RawValue> {
         self.insert_ref(&key, &value)
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, key: &K, value: &[u8]) -> Option<RawValue> {
+    pub fn insert_ref(&mut self, key: &K, value: &[u8]) -> Option<RawValue> {
         self.inner.insert(&key.to_bytes(), value)
     }
 
     #[inline(always)]
-    pub fn set_value(&self, key: K, value: RawValue) {
+    pub fn set_value(&mut self, key: K, value: RawValue) {
         self.set_value_ref(&key, &value);
     }
 
     #[inline(always)]
-    pub fn set_value_ref(&self, key: &K, value: &[u8]) {
+    pub fn set_value_ref(&mut self, key: &K, value: &[u8]) {
         self.inner.insert(&key.to_bytes(), value);
     }
 
     #[inline(always)]
-    pub fn entry(&self, key: K) -> Entry<'_, K> {
+    pub fn entry(&mut self, key: K) -> Entry<'_, K> {
         Entry { key, hdr: self }
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a K) -> EntryRef<'a, K> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a K) -> EntryRef<'a, K> {
         EntryRef { key, hdr: self }
     }
 
@@ -218,17 +218,17 @@ where
     }
 
     #[inline(always)]
-    pub fn remove(&self, key: &K) -> Option<RawValue> {
+    pub fn remove(&mut self, key: &K) -> Option<RawValue> {
         self.inner.remove(&key.to_bytes())
     }
 
     #[inline(always)]
-    pub fn unset_value(&self, key: &K) {
+    pub fn unset_value(&mut self, key: &K) {
         self.inner.remove(&key.to_bytes());
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 }
@@ -238,7 +238,7 @@ pub struct ValueMut<'a, K>
 where
     K: KeyEnDeOrdered,
 {
-    hdr: &'a MapxOrdRawValue<K>,
+    hdr: &'a mut MapxOrdRawValue<K>,
     key: K,
     value: RawValue,
 }
@@ -247,7 +247,7 @@ impl<'a, K> ValueMut<'a, K>
 where
     K: KeyEnDeOrdered,
 {
-    pub(crate) fn new(hdr: &'a MapxOrdRawValue<K>, key: K, value: RawValue) -> Self {
+    pub(crate) fn new(hdr: &'a mut MapxOrdRawValue<K>, key: K, value: RawValue) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -286,7 +286,7 @@ where
     K: KeyEnDeOrdered,
 {
     key: K,
-    hdr: &'a MapxOrdRawValue<K>,
+    hdr: &'a mut MapxOrdRawValue<K>,
 }
 
 impl<'a, K> Entry<'a, K>
@@ -306,7 +306,7 @@ where
     K: KeyEnDeOrdered,
 {
     key: &'a K,
-    hdr: &'a MapxOrdRawValue<K>,
+    hdr: &'a mut MapxOrdRawValue<K>,
 }
 
 impl<'a, K> EntryRef<'a, K>

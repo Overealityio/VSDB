@@ -69,7 +69,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) fn insert(
-        &self,
+        &mut self,
         key: &[&[u8]],
         value: &[u8],
     ) -> Result<Option<RawValue>> {
@@ -79,7 +79,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) fn insert_by_branch(
-        &self,
+        &mut self,
         key: &[&[u8]],
         value: &[u8],
         branch_id: BranchID,
@@ -97,7 +97,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     fn insert_by_branch_version(
-        &self,
+        &mut self,
         key: &[&[u8]],
         value: &[u8],
         branch_id: BranchID,
@@ -108,14 +108,14 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn remove(&self, key: &[&[u8]]) -> Result<Option<RawValue>> {
+    pub(super) fn remove(&mut self, key: &[&[u8]]) -> Result<Option<RawValue>> {
         self.remove_by_branch(key, self.branch_get_default())
             .c(d!())
     }
 
     #[inline(always)]
     pub(super) fn remove_by_branch(
-        &self,
+        &mut self,
         key: &[&[u8]],
         branch_id: BranchID,
     ) -> Result<Option<RawValue>> {
@@ -131,7 +131,7 @@ impl MapxRawMkVs {
     }
 
     fn remove_by_branch_version(
-        &self,
+        &mut self,
         key: &[&[u8]],
         branch_id: BranchID,
         version_id: VersionID,
@@ -141,7 +141,7 @@ impl MapxRawMkVs {
     }
 
     fn write_by_branch_version(
-        &self,
+        &mut self,
         key: &[&[u8]],
         value: Option<&[u8]>,
         branch_id: BranchID,
@@ -175,15 +175,17 @@ impl MapxRawMkVs {
     }
 
     fn batch_remove_by_branch_version(
-        &self,
+        &mut self,
         key: &[&[u8]],
         value: Option<&[u8]>,
         version_id: VersionID,
     ) -> Result<Option<RawValue>> {
-        let hdr = self.version_to_change_set.get_mut(&version_id).c(d!())?;
+        let mut hdr = self.version_to_change_set.get(&version_id).c(d!())?;
+        let hdr_shadow = hdr; // hack~
         let mut op = |k: &[&[u8]], _: &[u8]| hdr.insert(k, &[]).c(d!()).map(|_| ());
-        hdr.iter_op_with_key_prefix(&mut op, key).c(d!())?;
+        hdr_shadow.iter_op_with_key_prefix(&mut op, key).c(d!())?;
 
+        let layered_kv_shadow = self.layered_kv; // hack~
         let mut op = |k: &[&[u8]], _: &MapxOrd<VersionID, Option<RawValue>>| {
             self.layered_kv
                 .entry_ref(k)
@@ -195,8 +197,7 @@ impl MapxRawMkVs {
                 );
             Ok(())
         };
-
-        self.layered_kv
+        layered_kv_shadow
             .iter_op_with_key_prefix(&mut op, key)
             .c(d!())?;
 
@@ -351,13 +352,13 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn version_create(&self, version_name: &[u8]) -> Result<()> {
+    pub(super) fn version_create(&mut self, version_name: &[u8]) -> Result<()> {
         self.version_create_by_branch(version_name, self.branch_get_default())
             .c(d!())
     }
 
     pub(super) fn version_create_by_branch(
-        &self,
+        &mut self,
         version_name: &[u8],
         branch_id: BranchID,
     ) -> Result<()> {
@@ -365,7 +366,7 @@ impl MapxRawMkVs {
             return Err(eg!("version already exists"));
         }
 
-        let vers = self
+        let mut vers = self
             .branch_to_its_versions
             .get_mut(&branch_id)
             .c(d!("branch not found"))?;
@@ -407,13 +408,13 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn version_pop(&self) -> Result<()> {
+    pub(super) fn version_pop(&mut self) -> Result<()> {
         self.version_pop_by_branch(self.branch_get_default())
             .c(d!())
     }
 
     #[inline(always)]
-    pub(super) fn version_pop_by_branch(&self, branch_id: BranchID) -> Result<()> {
+    pub(super) fn version_pop_by_branch(&mut self, branch_id: BranchID) -> Result<()> {
         if let Some((version_id, _)) = self
             .branch_to_its_versions
             .get(&branch_id)
@@ -428,7 +429,7 @@ impl MapxRawMkVs {
     }
 
     fn version_remove_by_branch(
-        &self,
+        &mut self,
         version_id: VersionID,
         branch_id: BranchID,
     ) -> Result<()> {
@@ -445,16 +446,19 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) unsafe fn version_rebase(&self, base_version: VersionID) -> Result<()> {
+    pub(super) unsafe fn version_rebase(
+        &mut self,
+        base_version: VersionID,
+    ) -> Result<()> {
         self.version_rebase_by_branch(base_version, self.branch_get_default())
             .c(d!())
     }
     pub(super) unsafe fn version_rebase_by_branch(
-        &self,
+        &mut self,
         base_version: VersionID,
         branch_id: BranchID,
     ) -> Result<()> {
-        let vers_hdr = self
+        let mut vers_hdr = self
             .branch_to_its_versions
             .get(&branch_id)
             .c(d!("branch not found"))?;
@@ -468,7 +472,8 @@ impl MapxRawMkVs {
             return Err(eg!("base version is not on this branch"));
         };
 
-        let base_ver_chg_set = self.version_to_change_set.get(&base_version).c(d!())?;
+        let mut base_ver_chg_set =
+            self.version_to_change_set.get(&base_version).c(d!())?;
         let vers_to_be_merged = vers.collect::<Vec<_>>();
 
         for verid in vers_to_be_merged.iter() {
@@ -477,7 +482,7 @@ impl MapxRawMkVs {
                 self.layered_kv
                     .get(k)
                     .c(d!())
-                    .and_then(|hdr| {
+                    .and_then(|mut hdr| {
                         hdr.remove(verid)
                             .c(d!())
                             .map(|v| hdr.insert(base_version, v))
@@ -555,7 +560,7 @@ impl MapxRawMkVs {
     //
     // Version itself and its corresponding changes will be completely purged from all branches
     pub(super) unsafe fn version_revert_globally(
-        &self,
+        &mut self,
         version_id: VersionID,
     ) -> Result<()> {
         let mut chgset_ops = |key: &[&[u8]], _: &[u8]| {
@@ -569,9 +574,11 @@ impl MapxRawMkVs {
         let chgset = self.version_to_change_set.remove(&version_id).c(d!())?;
         chgset.iter_op(&mut chgset_ops).c(d!())?;
 
-        self.branch_to_its_versions.iter().for_each(|(_, vers)| {
-            vers.remove(&version_id);
-        });
+        self.branch_to_its_versions
+            .iter()
+            .for_each(|(_, mut vers)| {
+                vers.remove(&version_id);
+            });
 
         self.version_id_to_version_name
             .remove(&version_id)
@@ -582,7 +589,7 @@ impl MapxRawMkVs {
 
     // clean up all orphaned versions in the global scope
     #[inline(always)]
-    pub(super) fn version_clean_up_globally(&self) -> Result<()> {
+    pub(super) fn version_clean_up_globally(&mut self) -> Result<()> {
         let valid_vers = self
             .branch_to_its_versions
             .iter()
@@ -618,7 +625,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) fn branch_create(
-        &self,
+        &mut self,
         branch_name: &[u8],
         version_name: &[u8],
         force: bool,
@@ -634,7 +641,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) fn branch_create_by_base_branch(
-        &self,
+        &mut self,
         branch_name: &[u8],
         version_name: &[u8],
         base_branch_id: BranchID,
@@ -665,7 +672,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) fn branch_create_by_base_branch_version(
-        &self,
+        &mut self,
         branch_name: &[u8],
         version_name: &[u8],
         base_branch_id: BranchID,
@@ -690,7 +697,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) unsafe fn branch_create_without_new_version(
-        &self,
+        &mut self,
         branch_name: &[u8],
         force: bool,
     ) -> Result<()> {
@@ -704,7 +711,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) unsafe fn branch_create_by_base_branch_without_new_version(
-        &self,
+        &mut self,
         branch_name: &[u8],
         base_branch_id: BranchID,
         force: bool,
@@ -728,7 +735,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) unsafe fn branch_create_by_base_branch_version_without_new_version(
-        &self,
+        &mut self,
         branch_name: &[u8],
         base_branch_id: BranchID,
         base_version_id: VersionID,
@@ -745,7 +752,7 @@ impl MapxRawMkVs {
     }
 
     unsafe fn do_branch_create_by_base_branch_version(
-        &self,
+        &mut self,
         branch_name: &[u8],
         version_name: Option<&[u8]>,
         base_branch_id: BranchID,
@@ -771,7 +778,7 @@ impl MapxRawMkVs {
             if !vers.contains_key(&bv) {
                 return Err(eg!("version is not on the base branch"));
             }
-            vers.range(..=bv).fold(MapxOrd::new(), |acc, (k, v)| {
+            vers.range(..=bv).fold(MapxOrd::new(), |mut acc, (k, v)| {
                 acc.insert(k, v);
                 acc
             })
@@ -813,7 +820,7 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn branch_remove(&self, branch_id: BranchID) -> Result<()> {
+    pub(super) fn branch_remove(&mut self, branch_id: BranchID) -> Result<()> {
         self.branch_truncate(branch_id).c(d!())?;
 
         self.branch_id_to_branch_name
@@ -828,7 +835,7 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn branch_keep_only(&self, branch_ids: &[BranchID]) -> Result<()> {
+    pub(super) fn branch_keep_only(&mut self, branch_ids: &[BranchID]) -> Result<()> {
         for brid in self
             .branch_id_to_branch_name
             .iter()
@@ -841,12 +848,12 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn branch_truncate(&self, branch_id: BranchID) -> Result<()> {
+    pub(super) fn branch_truncate(&mut self, branch_id: BranchID) -> Result<()> {
         self.branch_truncate_to(branch_id, VersionID::MIN).c(d!())
     }
 
     pub(super) fn branch_truncate_to(
-        &self,
+        &mut self,
         branch_id: BranchID,
         last_version_id: VersionID,
     ) -> Result<()> {
@@ -862,13 +869,13 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn branch_pop_version(&self, branch_id: BranchID) -> Result<()> {
+    pub(super) fn branch_pop_version(&mut self, branch_id: BranchID) -> Result<()> {
         self.version_pop_by_branch(branch_id).c(d!())
     }
 
     #[inline(always)]
     pub(super) fn branch_merge_to(
-        &self,
+        &mut self,
         branch_id: BranchID,
         target_branch_id: BranchID,
     ) -> Result<()> {
@@ -877,7 +884,7 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) unsafe fn branch_merge_to_force(
-        &self,
+        &mut self,
         branch_id: BranchID,
         target_branch_id: BranchID,
     ) -> Result<()> {
@@ -885,7 +892,7 @@ impl MapxRawMkVs {
     }
 
     unsafe fn do_branch_merge_to(
-        &self,
+        &mut self,
         branch_id: BranchID,
         target_branch_id: BranchID,
         force: bool,
@@ -894,7 +901,7 @@ impl MapxRawMkVs {
             .branch_to_its_versions
             .get(&branch_id)
             .c(d!("branch not found"))?;
-        let target_vers = self
+        let mut target_vers = self
             .branch_to_its_versions
             .get(&target_branch_id)
             .c(d!("target branch not found"))?;
@@ -1032,7 +1039,7 @@ impl MapxRawMkVs {
     }
 
     #[inline(always)]
-    pub(super) fn prune(&self, reserved_ver_num: Option<usize>) -> Result<()> {
+    pub(super) fn prune(&mut self, reserved_ver_num: Option<usize>) -> Result<()> {
         self.version_clean_up_globally().c(d!())?;
 
         let reserved_ver_num = reserved_ver_num.unwrap_or(RESERVED_VERSION_NUM_DEFAULT);
@@ -1075,9 +1082,10 @@ impl MapxRawMkVs {
             }
         };
 
-        let rewrite_ver_chgset = self.version_to_change_set.get(rewrite_ver).c(d!())?;
+        let mut rewrite_ver_chgset =
+            self.version_to_change_set.get(rewrite_ver).c(d!())?;
 
-        for (_, vers) in self
+        for (_, mut vers) in self
             .branch_to_its_versions
             .iter()
             .filter(|(_, vers)| !vers.is_empty())
@@ -1095,7 +1103,7 @@ impl MapxRawMkVs {
                     self.version_name_to_version_id.remove(&vername).c(d!())
                 })?;
             let mut chgset_ops = |k: &[&[u8]], _: &[u8]| {
-                let k_vers = self.layered_kv.get(k).c(d!())?;
+                let mut k_vers = self.layered_kv.get(k).c(d!())?;
                 let value = k_vers.remove(ver).c(d!())?;
                 if k_vers.range(..=rewrite_ver).next().is_none() {
                     assert!(rewrite_ver_chgset.insert(k, &[]).c(d!())?.is_none());

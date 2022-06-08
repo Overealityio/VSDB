@@ -8,7 +8,7 @@ fn basic_cases() {
         rand::random::<u64>()
     )));
 
-    let map = MapxRawMk::new(4);
+    let mut map = MapxRawMk::new(4);
 
     // key size mismatch
     assert!(map.insert(&[&[1]], &[]).is_err());

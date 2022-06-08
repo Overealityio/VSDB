@@ -67,7 +67,7 @@ where
 
     #[inline(always)]
     pub fn get_mut<'a>(
-        &'a self,
+        &'a mut self,
         key: &'a (&'a K1, &'a K2, &'a K3),
     ) -> Option<ValueMut<'a, K1, K2, K3, V>> {
         self.get(key).map(move |v| ValueMut::new(self, key, v))
@@ -85,14 +85,14 @@ where
 
     #[inline(always)]
     pub fn entry_ref<'a>(
-        &'a self,
+        &'a mut self,
         key: &'a (&'a K1, &'a K2, &'a K3),
     ) -> Entry<'a, K1, K2, K3, V> {
         Entry { key, hdr: self }
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: &(&K1, &K2, &K3), value: &V) -> Option<V> {
+    pub fn insert(&mut self, key: &(&K1, &K2, &K3), value: &V) -> Option<V> {
         let k1 = key.0.encode();
         let k2 = key.1.encode();
         let k3 = key.2.encode();
@@ -103,7 +103,7 @@ where
 
     /// Support batch removal.
     #[inline(always)]
-    pub fn remove(&self, key: &(&K1, Option<(&K2, Option<&K3>)>)) -> Option<V> {
+    pub fn remove(&mut self, key: &(&K1, Option<(&K2, Option<&K3>)>)) -> Option<V> {
         let k1 = key.0.encode();
         let k2_k3 = key
             .1
@@ -123,7 +123,7 @@ where
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 
@@ -153,7 +153,7 @@ where
     K3: KeyEnDe,
     V: ValueEnDe,
 {
-    hdr: &'a MapxTk<K1, K2, K3, V>,
+    hdr: &'a mut MapxTk<K1, K2, K3, V>,
     key: &'a (&'a K1, &'a K2, &'a K3),
     value: V,
 }
@@ -166,7 +166,7 @@ where
     V: ValueEnDe,
 {
     fn new(
-        hdr: &'a MapxTk<K1, K2, K3, V>,
+        hdr: &'a mut MapxTk<K1, K2, K3, V>,
         key: &'a (&'a K1, &'a K2, &'a K3),
         value: V,
     ) -> Self {
@@ -212,8 +212,8 @@ where
 }
 
 pub struct Entry<'a, K1, K2, K3, V> {
+    hdr: &'a mut MapxTk<K1, K2, K3, V>,
     key: &'a (&'a K1, &'a K2, &'a K3),
-    hdr: &'a MapxTk<K1, K2, K3, V>,
 }
 
 impl<'a, K1, K2, K3, V> Entry<'a, K1, K2, K3, V>

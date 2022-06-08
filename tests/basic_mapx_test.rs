@@ -24,7 +24,7 @@ fn basic_cases() {
 
     let cnt = 200;
     let hdr = {
-        let hdr_i = Mapx::new();
+        let mut hdr_i = Mapx::new();
 
         assert_eq!(0, hdr_i.len());
         (0..cnt).for_each(|i| {
@@ -47,7 +47,7 @@ fn basic_cases() {
         <Mapx<usize, SampleBlock> as ValueEnDe>::encode(&hdr_i)
     };
 
-    let reloaded = pnk!(<Mapx<usize, SampleBlock> as ValueEnDe>::decode(&hdr));
+    let mut reloaded = pnk!(<Mapx<usize, SampleBlock> as ValueEnDe>::decode(&hdr));
 
     assert_eq!(cnt, reloaded.len());
 

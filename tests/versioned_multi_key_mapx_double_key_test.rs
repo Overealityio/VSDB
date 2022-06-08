@@ -8,7 +8,7 @@ fn basic_cases() {
         rand::random::<u64>()
     )));
 
-    let map = MapxDkVs::new();
+    let mut map = MapxDkVs::new();
     pnk!(map.version_create(VersionName(b"")));
 
     assert!(pnk!(map.insert((1u8, 1u8), 9u8)).is_none());

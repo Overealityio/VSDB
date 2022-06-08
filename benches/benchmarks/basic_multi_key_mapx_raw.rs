@@ -14,7 +14,7 @@ fn read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let i = AtomicUsize::new(0);
-    let db = MapxRawMk::new(2);
+    let mut db = MapxRawMk::new(2);
     group.bench_function(" write ", |b| {
         b.iter(|| {
             let n = i.fetch_add(1, Ordering::SeqCst);
@@ -43,7 +43,7 @@ fn random_read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let mut rng = rand::thread_rng();
-    let db = MapxRawMk::new(2);
+    let mut db = MapxRawMk::new(2);
     let mut keys = vec![];
     group.bench_function(" random write ", |b| {
         b.iter(|| {

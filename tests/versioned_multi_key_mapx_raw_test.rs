@@ -17,7 +17,7 @@ fn basic_cases() {
 
     let cnt = 200;
     let hdr = {
-        let hdr_i = MapxRawMkVs::new(2);
+        let mut hdr_i = MapxRawMkVs::new(2);
         hdr_i.version_create(VersionName(b"test")).unwrap();
 
         (0..cnt).for_each(|i: usize| {
@@ -39,7 +39,7 @@ fn basic_cases() {
         <MapxRawMkVs as ValueEnDe>::encode(&hdr_i)
     };
 
-    let reloaded = pnk!(<MapxRawMkVs as ValueEnDe>::decode(&hdr));
+    let mut reloaded = pnk!(<MapxRawMkVs as ValueEnDe>::decode(&hdr));
 
     (0..cnt).map(|i: usize| i.to_be_bytes()).for_each(|i| {
         assert_eq!(
@@ -758,7 +758,7 @@ fn version_rebase() {
         rand::random::<u64>()
     )));
 
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
 
     pnk!(hdr.version_create(VersionName(&[0])));
     pnk!(hdr.insert(&[&[0], &[0]], &[0]));

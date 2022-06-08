@@ -5,7 +5,7 @@ use ruc::*;
 
 #[test]
 fn test_insert() {
-    let hdr = MapxRawMk::new(2);
+    let mut hdr = MapxRawMk::new(2);
     assert_eq!(2, hdr.key_size());
     let max = 500;
     (0..max)
@@ -32,7 +32,7 @@ fn test_insert() {
 fn test_valueende() {
     let cnt = 500;
     let dehdr = {
-        let hdr = MapxRawMk::new(2);
+        let mut hdr = MapxRawMk::new(2);
         let max = 500;
         (0..max)
             .map(|i: usize| (i.to_be_bytes(), <usize as ValueEnDe>::encode(&i)))
@@ -43,7 +43,7 @@ fn test_valueende() {
         crate::vsdb_flush();
         <MapxRawMk as ValueEnDe>::encode(&hdr)
     };
-    let reloaded = pnk!(<MapxRawMk as ValueEnDe>::decode(&dehdr));
+    let mut reloaded = pnk!(<MapxRawMk as ValueEnDe>::decode(&dehdr));
 
     (0..cnt)
         .map(|i: usize| (i, i.to_be_bytes()))
@@ -57,7 +57,7 @@ fn test_valueende() {
 
 #[test]
 fn test_iter_op() {
-    let map = MapxRawMk::new(4);
+    let mut map = MapxRawMk::new(4);
     assert!(
         map.entry_ref(&[&[1], &[2], &[3], &[4]])
             .or_insert_ref(&[0])
@@ -77,7 +77,7 @@ fn test_iter_op() {
 
 #[test]
 fn test_iter_op_with_key_prefix() {
-    let map = MapxRawMk::new(4);
+    let mut map = MapxRawMk::new(4);
     assert!(
         map.entry_ref(&[&[11], &[12], &[13], &[14]])
             .or_insert_ref(&[])

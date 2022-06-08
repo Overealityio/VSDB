@@ -48,8 +48,9 @@ impl<T: ValueEnDe> VecxVs<T> {
     }
 
     #[inline(always)]
-    pub fn get_mut(&self, idx: usize) -> Option<ValueMut<'_, T>> {
-        self.get(idx).map(|v| ValueMut::new(&self.inner, idx, v))
+    pub fn get_mut(&mut self, idx: usize) -> Option<ValueMut<'_, T>> {
+        self.get(idx)
+            .map(|v| ValueMut::new(&mut self.inner, idx, v))
     }
 
     #[inline(always)]
@@ -73,29 +74,29 @@ impl<T: ValueEnDe> VecxVs<T> {
     }
 
     #[inline(always)]
-    pub fn push(&self, v: T) {
+    pub fn push(&mut self, v: T) {
         self.push_ref(&v)
     }
 
     #[inline(always)]
-    pub fn push_ref(&self, v: &T) {
+    pub fn push_ref(&mut self, v: &T) {
         self.inner
             .insert_ref(&(self.len() as u64).to_be_bytes(), v)
             .unwrap();
     }
 
     #[inline(always)]
-    pub fn pop(&self) -> Result<Option<T>> {
+    pub fn pop(&mut self) -> Result<Option<T>> {
         alt!(self.is_empty(), return Ok(None));
         self.inner.remove(&(self.len() - 1).to_be_bytes()).c(d!())
     }
 
-    pub fn update(&self, idx: usize, v: T) -> Result<Option<T>> {
+    pub fn update(&mut self, idx: usize, v: T) -> Result<Option<T>> {
         self.update_ref(idx, &v).c(d!())
     }
 
     #[inline(always)]
-    pub fn update_ref(&self, idx: usize, v: &T) -> Result<Option<T>> {
+    pub fn update_ref(&mut self, idx: usize, v: &T) -> Result<Option<T>> {
         if idx < self.len() {
             self.inner
                 .insert_ref(&(idx as u64).to_be_bytes(), v)
@@ -144,19 +145,19 @@ impl<T: ValueEnDe> VecxVs<T> {
     }
 
     #[inline(always)]
-    pub fn push_by_branch(&self, v: T, branch_name: BranchName) {
+    pub fn push_by_branch(&mut self, v: T, branch_name: BranchName) {
         self.push_ref_by_branch(&v, branch_name)
     }
 
     #[inline(always)]
-    pub fn push_ref_by_branch(&self, v: &T, branch_name: BranchName) {
+    pub fn push_ref_by_branch(&mut self, v: &T, branch_name: BranchName) {
         self.inner
             .insert_ref_by_branch(&(self.len() as u64).to_be_bytes(), v, branch_name)
             .unwrap();
     }
 
     #[inline(always)]
-    pub fn pop_by_branch(&self, branch_name: BranchName) -> Result<Option<T>> {
+    pub fn pop_by_branch(&mut self, branch_name: BranchName) -> Result<Option<T>> {
         alt!(self.is_empty(), return Ok(None));
         self.inner
             .remove_by_branch(&(self.len() - 1).to_be_bytes(), branch_name)
@@ -164,7 +165,7 @@ impl<T: ValueEnDe> VecxVs<T> {
     }
 
     pub fn update_by_branch(
-        &self,
+        &mut self,
         idx: usize,
         v: T,
         branch_name: BranchName,
@@ -174,7 +175,7 @@ impl<T: ValueEnDe> VecxVs<T> {
 
     #[inline(always)]
     pub fn update_ref_by_branch(
-        &self,
+        &mut self,
         idx: usize,
         v: &T,
         branch_name: BranchName,
@@ -281,7 +282,7 @@ impl<'a, T: ValueEnDe> DoubleEndedIterator for VecxVsIter<'a, T> {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ValueMut<'a, V: ValueEnDe> {
-    hdr: &'a MapxOrdRawKeyVs<V>,
+    hdr: &'a mut MapxOrdRawKeyVs<V>,
     key: u64,
     value: V,
 }
@@ -290,7 +291,7 @@ impl<'a, V> ValueMut<'a, V>
 where
     V: ValueEnDe,
 {
-    fn new(hdr: &'a MapxOrdRawKeyVs<V>, key: usize, value: V) -> Self {
+    fn new(hdr: &'a mut MapxOrdRawKeyVs<V>, key: usize, value: V) -> Self {
         ValueMut {
             hdr,
             key: key as u64,

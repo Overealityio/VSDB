@@ -6,19 +6,19 @@ use crate::{
 
 #[test]
 fn test_master_branch_exists() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     assert!(hdr.branch_exists(INITIAL_BRANCH_NAME));
 }
 
 #[test]
 fn test_master_branch_has_versions() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     assert_eq!(false, hdr.branch_has_versions(INITIAL_BRANCH_NAME));
 }
 
 #[test]
 fn test_branch_create_no_version() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
     unsafe {
@@ -34,7 +34,7 @@ fn test_branch_create_no_version() {
 
 #[test]
 fn test_branch_create_by_base_branch() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     pnk!(hdr.version_create(VersionName(b"manster0")));
     let bn1 = BranchName(b"test1");
     let vn11 = VersionName(b"testversion11");
@@ -51,7 +51,7 @@ fn test_branch_create_by_base_branch() {
 
 #[test]
 fn test_branch_remove() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
     pnk!(hdr.branch_create(bn, vn, false));
@@ -83,7 +83,7 @@ fn test_branch_merge() {
 
 #[test]
 fn test_branch_pop_version() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     assert_eq!(false, hdr.branch_has_versions(INITIAL_BRANCH_NAME));
     pnk!(hdr.version_create(VersionName(b"manster0")));
     assert!(hdr.branch_has_versions(INITIAL_BRANCH_NAME));
@@ -119,7 +119,7 @@ fn test_branch_swap() {
 
 #[test]
 fn test_branch_truncate() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     pnk!(hdr.version_create(VersionName(b"manster0")));
 
     let mkey0 = (1, 1, 1);
@@ -137,7 +137,7 @@ fn test_branch_truncate() {
 
 #[test]
 fn test_branch_truncate_to() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     let vn = VersionName(b"manster0");
     pnk!(hdr.version_create(vn));
 
@@ -157,7 +157,7 @@ fn test_branch_truncate_to() {
 }
 #[test]
 fn test_insert() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     pnk!(hdr.version_create(VersionName(b"manster0")));
     let max = 500;
     (0..max)
@@ -182,7 +182,7 @@ fn test_insert() {
 fn test_valueende() {
     let cnt = 500;
     let dehdr = {
-        let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+        let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
         pnk!(hdr.version_create(VersionName(b"manster0")));
         (0..cnt).map(|i: usize| (i, i)).for_each(|(i, value)| {
             let key = (i, i, i);
@@ -191,9 +191,9 @@ fn test_valueende() {
         crate::vsdb_flush();
         <MapxTkVs<usize, usize, usize, usize> as ValueEnDe>::encode(&hdr)
     };
-    let reloaded = pnk!(<MapxTkVs<usize, usize, usize, usize> as ValueEnDe>::decode(
-        &dehdr
-    ));
+    let mut reloaded = pnk!(
+        <MapxTkVs<usize, usize, usize, usize> as ValueEnDe>::decode(&dehdr)
+    );
     (0..cnt).map(|i: usize| i).for_each(|i| {
         let key = &(&i, &i, &i);
         assert_eq!(i, reloaded.get(key).unwrap());
@@ -202,7 +202,7 @@ fn test_valueende() {
 
 #[test]
 fn test_emptystr_version() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     pnk!(hdr.version_create(VersionName(b"")));
 
     let key = &(&1, &1, &1);
@@ -221,7 +221,7 @@ fn test_emptystr_version() {
 
 #[test]
 fn test_version_get() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     let vn = VersionName(b"master0");
     pnk!(hdr.version_create(vn));
     let key1 = &(&1, &1, &1);
@@ -242,7 +242,7 @@ fn test_version_get() {
 
 #[test]
 fn test_version_rebase() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
     let key = (0, 0, 0);
     pnk!(hdr.version_create(VersionName(&[0])));
     pnk!(hdr.insert(key, 0));
@@ -269,7 +269,7 @@ fn test_version_rebase() {
 
 #[test]
 fn test_version_rebase_by_branch() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
 
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
@@ -346,7 +346,7 @@ fn test_version_rebase_by_branch() {
 
 #[test]
 fn test_prune() {
-    let hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
+    let mut hdr: MapxTkVs<usize, usize, usize, usize> = MapxTkVs::new();
 
     pnk!(hdr.prune(None));
     pnk!(hdr.prune(Some(1000000000)));

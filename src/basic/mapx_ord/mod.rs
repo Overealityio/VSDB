@@ -96,9 +96,11 @@ where
     }
 
     #[inline(always)]
-    pub fn get_mut(&self, key: &K) -> Option<ValueMut<'_, V>> {
+    pub fn get_mut(&mut self, key: &K) -> Option<ValueMut<'_, V>> {
         let k = key.to_bytes();
-        self.inner.get(&k).map(|v| ValueMut::new(&self.inner, k, v))
+        self.inner
+            .get(&k)
+            .map(|v| ValueMut::new(&mut self.inner, k, v))
     }
 
     #[inline(always)]
@@ -131,36 +133,40 @@ where
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: K, value: V) -> Option<V> {
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         self.insert_ref(&key, &value)
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, key: &K, value: &V) -> Option<V> {
+    pub fn insert_ref(&mut self, key: &K, value: &V) -> Option<V> {
         self.inner.insert_ref(&key.to_bytes(), value)
     }
 
     // used to support efficient versioned-implementations
     #[inline(always)]
-    pub(crate) fn insert_ref_encoded_value(&self, key: &K, value: &[u8]) -> Option<V> {
+    pub(crate) fn insert_ref_encoded_value(
+        &mut self,
+        key: &K,
+        value: &[u8],
+    ) -> Option<V> {
         self.inner.insert_ref_encoded_value(&key.to_bytes(), value)
     }
 
     #[inline(always)]
-    pub fn set_value(&self, key: K, value: V) {
+    pub fn set_value(&mut self, key: K, value: V) {
         self.set_value_ref(&key, &value);
     }
 
     #[inline(always)]
-    pub fn set_value_ref(&self, key: &K, value: &V) {
+    pub fn set_value_ref(&mut self, key: &K, value: &V) {
         self.inner.insert_ref(&key.to_bytes(), value);
     }
 
     #[inline(always)]
-    pub fn entry(&self, key: K) -> Entry<'_, V> {
+    pub fn entry(&mut self, key: K) -> Entry<'_, V> {
         Entry {
             key: key.to_bytes(),
-            hdr: &self.inner,
+            hdr: &mut self.inner,
         }
     }
 
@@ -230,17 +236,17 @@ where
     }
 
     #[inline(always)]
-    pub fn remove(&self, key: &K) -> Option<V> {
+    pub fn remove(&mut self, key: &K) -> Option<V> {
         self.inner.remove(&key.to_bytes())
     }
 
     #[inline(always)]
-    pub fn unset_value(&self, key: &K) {
+    pub fn unset_value(&mut self, key: &K) {
         self.inner.remove(&key.to_bytes());
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 }

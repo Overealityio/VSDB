@@ -177,6 +177,7 @@
 //! The serialized result of a VSDB instance can not be used as the basis for distributed consensus, because the serialized result only contains some meta-information(storage paths, etc.), and these meta-information are likely to be different in different environments, the correct way is to read what you need from it, and then process the real content.
 
 #![deny(warnings)]
+#![cfg_attr(test, allow(warnings))]
 #![recursion_limit = "512"]
 
 pub mod basic;

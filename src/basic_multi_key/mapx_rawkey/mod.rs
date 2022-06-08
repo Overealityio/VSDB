@@ -51,7 +51,7 @@ impl<V: ValueEnDe> MapxRawKeyMk<V> {
     }
 
     #[inline(always)]
-    pub fn get_mut<'a>(&'a self, key: &'a [&'a [u8]]) -> Option<ValueMut<'a, V>> {
+    pub fn get_mut<'a>(&'a mut self, key: &'a [&'a [u8]]) -> Option<ValueMut<'a, V>> {
         self.get(key).map(move |v| ValueMut::new(self, key, v))
     }
 
@@ -66,12 +66,12 @@ impl<V: ValueEnDe> MapxRawKeyMk<V> {
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a [&'a [u8]]) -> Entry<'a, V> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a [&'a [u8]]) -> Entry<'a, V> {
         Entry { key, hdr: self }
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: &[&[u8]], value: &V) -> Result<Option<V>> {
+    pub fn insert(&mut self, key: &[&[u8]], value: &V) -> Result<Option<V>> {
         let v = value.encode();
         self.inner
             .insert(key, &v)
@@ -81,7 +81,7 @@ impl<V: ValueEnDe> MapxRawKeyMk<V> {
 
     /// Support batch removal.
     #[inline(always)]
-    pub fn remove(&self, key: &[&[u8]]) -> Result<Option<V>> {
+    pub fn remove(&mut self, key: &[&[u8]]) -> Result<Option<V>> {
         self.inner
             .remove(key)
             .c(d!())
@@ -89,7 +89,7 @@ impl<V: ValueEnDe> MapxRawKeyMk<V> {
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 
@@ -123,13 +123,13 @@ impl<V: ValueEnDe> MapxRawKeyMk<V> {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ValueMut<'a, V: ValueEnDe> {
-    hdr: &'a MapxRawKeyMk<V>,
+    hdr: &'a mut MapxRawKeyMk<V>,
     key: &'a [&'a [u8]],
     value: V,
 }
 
 impl<'a, V: ValueEnDe> ValueMut<'a, V> {
-    fn new(hdr: &'a MapxRawKeyMk<V>, key: &'a [&'a [u8]], value: V) -> Self {
+    fn new(hdr: &'a mut MapxRawKeyMk<V>, key: &'a [&'a [u8]], value: V) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -154,8 +154,8 @@ impl<'a, V: ValueEnDe> DerefMut for ValueMut<'a, V> {
 }
 
 pub struct Entry<'a, V> {
+    hdr: &'a mut MapxRawKeyMk<V>,
     key: &'a [&'a [u8]],
-    hdr: &'a MapxRawKeyMk<V>,
 }
 
 impl<'a, V: ValueEnDe> Entry<'a, V> {

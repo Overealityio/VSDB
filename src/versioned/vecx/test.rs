@@ -3,19 +3,19 @@ use crate::common::{ParentBranchName, INITIAL_BRANCH_NAME};
 
 #[test]
 fn test_master_branch_exists() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     assert!(hdr.branch_exists(INITIAL_BRANCH_NAME));
 }
 
 #[test]
 fn test_master_branch_has_versions() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     assert_eq!(false, hdr.branch_has_versions(INITIAL_BRANCH_NAME));
 }
 
 #[test]
 fn test_branch_create_no_version() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
     unsafe {
@@ -31,7 +31,7 @@ fn test_branch_create_no_version() {
 
 #[test]
 fn test_branch_create_by_base_branch() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     pnk!(hdr.version_create(VersionName(b"manster0")));
     let bn1 = BranchName(b"test1");
     let vn11 = VersionName(b"testversion11");
@@ -48,7 +48,7 @@ fn test_branch_create_by_base_branch() {
 
 #[test]
 fn test_branch_remove() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
     pnk!(hdr.branch_create(bn, vn, false));
@@ -60,7 +60,7 @@ fn test_branch_remove() {
 
 #[test]
 fn test_branch_merge() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     let mvn = VersionName(b"manster0");
     pnk!(hdr.version_create(mvn));
     let value1 = String::from("testvalue1");
@@ -79,7 +79,7 @@ fn test_branch_merge() {
 
 #[test]
 fn test_branch_pop_version() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     assert_eq!(false, hdr.branch_has_versions(INITIAL_BRANCH_NAME));
     pnk!(hdr.version_create(VersionName(b"manster0")));
     assert!(hdr.branch_has_versions(INITIAL_BRANCH_NAME));
@@ -112,7 +112,7 @@ fn test_branch_swap() {
 
 #[test]
 fn test_branch_truncate() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     pnk!(hdr.version_create(VersionName(b"manster0")));
 
     let tval = String::from("value2");
@@ -124,7 +124,7 @@ fn test_branch_truncate() {
 
 #[test]
 fn test_branch_truncate_to() {
-    let hdr: VecxVs<String> = VecxVs::new();
+    let mut hdr: VecxVs<String> = VecxVs::new();
     let vn = VersionName(b"manster0");
     pnk!(hdr.version_create(vn));
 

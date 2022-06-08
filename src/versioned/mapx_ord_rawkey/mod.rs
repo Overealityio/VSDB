@@ -63,12 +63,12 @@ where
     }
 
     #[inline(always)]
-    pub fn get_mut<'a>(&'a self, key: &'a [u8]) -> Option<ValueMut<'_, V>> {
+    pub fn get_mut<'a>(&'a mut self, key: &'a [u8]) -> Option<ValueMut<'_, V>> {
         self.get(key).map(move |v| ValueMut::new(self, key, v))
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a [u8]) -> Entry<'a, V> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a [u8]) -> Entry<'a, V> {
         Entry { key, hdr: self }
     }
 
@@ -191,13 +191,13 @@ where
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: RawKey, value: V) -> Result<Option<V>> {
+    pub fn insert(&mut self, key: RawKey, value: V) -> Result<Option<V>> {
         self.insert_ref(&key, &value).c(d!())
     }
 
     #[inline(always)]
     pub fn insert_by_branch(
-        &self,
+        &mut self,
         key: RawKey,
         value: V,
         branch_name: BranchName,
@@ -206,7 +206,7 @@ where
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, key: &[u8], value: &V) -> Result<Option<V>> {
+    pub fn insert_ref(&mut self, key: &[u8], value: &V) -> Result<Option<V>> {
         self.inner
             .insert(key, &value.encode())
             .c(d!())
@@ -215,7 +215,7 @@ where
 
     #[inline(always)]
     pub fn insert_ref_by_branch(
-        &self,
+        &mut self,
         key: &[u8],
         value: &V,
         branch_name: BranchName,
@@ -394,7 +394,7 @@ where
     }
 
     #[inline(always)]
-    pub fn remove(&self, key: &[u8]) -> Result<Option<V>> {
+    pub fn remove(&mut self, key: &[u8]) -> Result<Option<V>> {
         self.inner
             .remove(key)
             .c(d!())
@@ -403,7 +403,7 @@ where
 
     #[inline(always)]
     pub fn remove_by_branch(
-        &self,
+        &mut self,
         key: &[u8],
         branch_name: BranchName,
     ) -> Result<Option<V>> {
@@ -461,7 +461,7 @@ impl<'a, V> ExactSizeIterator for MapxOrdRawKeyVsIter<'a, V> where V: ValueEnDe 
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ValueMut<'a, V: ValueEnDe> {
-    hdr: &'a MapxOrdRawKeyVs<V>,
+    hdr: &'a mut MapxOrdRawKeyVs<V>,
     key: &'a [u8],
     value: V,
 }
@@ -470,7 +470,7 @@ impl<'a, V> ValueMut<'a, V>
 where
     V: ValueEnDe,
 {
-    fn new(hdr: &'a MapxOrdRawKeyVs<V>, key: &'a [u8], value: V) -> Self {
+    fn new(hdr: &'a mut MapxOrdRawKeyVs<V>, key: &'a [u8], value: V) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -504,8 +504,8 @@ where
 }
 
 pub struct Entry<'a, V: ValueEnDe> {
+    hdr: &'a mut MapxOrdRawKeyVs<V>,
     key: &'a [u8],
-    hdr: &'a MapxOrdRawKeyVs<V>,
 }
 
 impl<'a, V> Entry<'a, V>

@@ -1,5 +1,11 @@
 # Change log
 
+## v0.40.0
+
+#### API changes
+
+- All `write` functions have `&mut self` definations now
+
 ## v0.39.0
 
 #### Internal optimizations

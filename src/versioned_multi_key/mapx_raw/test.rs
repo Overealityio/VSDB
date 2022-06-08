@@ -6,19 +6,19 @@ use crate::{
 
 #[test]
 fn test_master_branch_exists() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     assert!(hdr.branch_exists(INITIAL_BRANCH_NAME));
 }
 
 #[test]
 fn test_master_branch_has_versions() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     assert_eq!(false, hdr.branch_has_versions(INITIAL_BRANCH_NAME));
 }
 
 #[test]
 fn test_branch_create_no_version() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
     unsafe {
@@ -34,7 +34,7 @@ fn test_branch_create_no_version() {
 
 #[test]
 fn test_branch_create_by_base_branch() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     pnk!(hdr.version_create(VersionName(b"manster0")));
     let bn1 = BranchName(b"test1");
     let vn11 = VersionName(b"testversion11");
@@ -53,7 +53,7 @@ fn test_branch_create_by_base_branch() {
 
 #[test]
 fn test_branch_remove() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
     pnk!(hdr.branch_create(bn, vn, false));
@@ -85,7 +85,7 @@ fn test_branch_merge() {
 
 #[test]
 fn test_branch_pop_version() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     assert_eq!(false, hdr.branch_has_versions(INITIAL_BRANCH_NAME));
     pnk!(hdr.version_create(VersionName(b"manster0")));
     assert!(hdr.branch_has_versions(INITIAL_BRANCH_NAME));
@@ -121,7 +121,7 @@ fn test_branch_swap() {
 
 #[test]
 fn test_branch_truncate() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     pnk!(hdr.version_create(VersionName(b"manster0")));
 
     let mkey0: &[&[u8]] = &[&[1], &[1]];
@@ -139,7 +139,7 @@ fn test_branch_truncate() {
 
 #[test]
 fn test_branch_truncate_to() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     let vn = VersionName(b"manster0");
     pnk!(hdr.version_create(vn));
 
@@ -159,7 +159,7 @@ fn test_branch_truncate_to() {
 }
 #[test]
 fn test_insert() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     pnk!(hdr.version_create(VersionName(b"manster0")));
     let max = 500;
     (0..max)
@@ -180,7 +180,7 @@ fn test_insert() {
 fn test_valueende() {
     let cnt = 500;
     let dehdr = {
-        let hdr = MapxRawMkVs::new(2);
+        let mut hdr = MapxRawMkVs::new(2);
         pnk!(hdr.version_create(VersionName(b"manster0")));
         (0..cnt)
             .map(|i: usize| (i.to_be_bytes(), i.to_be_bytes()))
@@ -191,7 +191,7 @@ fn test_valueende() {
         crate::vsdb_flush();
         <MapxRawMkVs as ValueEnDe>::encode(&hdr)
     };
-    let reloaded = pnk!(<MapxRawMkVs as ValueEnDe>::decode(&dehdr));
+    let mut reloaded = pnk!(<MapxRawMkVs as ValueEnDe>::decode(&dehdr));
     (0..cnt).map(|i: usize| i.to_be_bytes()).for_each(|i| {
         let key: &[&[u8]] = &[&i, &i];
         assert_eq!(i.to_vec().into_boxed_slice(), reloaded.get(key).unwrap());
@@ -200,7 +200,7 @@ fn test_valueende() {
 
 #[test]
 fn test_emptystr_version() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     pnk!(hdr.version_create(VersionName(b"")));
 
     let key: &[&[u8]] = &[&[2], &[2]];
@@ -216,7 +216,7 @@ fn test_emptystr_version() {
 
 #[test]
 fn test_version_get() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
     let vn = VersionName(b"master0");
     pnk!(hdr.version_create(vn));
     let key1: &[&[u8]] = &[&[1], &[1]];
@@ -238,7 +238,7 @@ fn test_version_get() {
 
 #[test]
 fn test_version_rebase() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
 
     pnk!(hdr.version_create(VersionName(&[0])));
     pnk!(hdr.insert(&[&[0], &[0]], &[0]));
@@ -265,7 +265,7 @@ fn test_version_rebase() {
 
 #[test]
 fn test_version_rebase_by_branch() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
 
     let bn = BranchName(b"test");
     let vn = VersionName(b"test1");
@@ -343,7 +343,7 @@ fn test_version_rebase_by_branch() {
 
 #[test]
 fn test_prune() {
-    let hdr = MapxRawMkVs::new(2);
+    let mut hdr = MapxRawMkVs::new(2);
 
     pnk!(hdr.prune(None));
     pnk!(hdr.prune(Some(1000000000)));

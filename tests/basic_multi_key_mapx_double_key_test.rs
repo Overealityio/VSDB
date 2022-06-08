@@ -8,7 +8,7 @@ fn basic_cases() {
         rand::random::<u64>()
     )));
 
-    let map = MapxDk::new();
+    let mut map = MapxDk::new();
 
     assert!(map.insert(&(&1u8, &1u8), &9u8).is_none());
     assert!(map.insert(&(&1, &2), &8).is_none());

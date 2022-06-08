@@ -24,7 +24,7 @@ fn basic_cases() {
 
     let cnt = 200;
     let hdr = {
-        let hdr = Vecx::new();
+        let mut hdr = Vecx::new();
 
         assert_eq!(0, hdr.len());
         (0..cnt).for_each(|i| {
@@ -43,7 +43,7 @@ fn basic_cases() {
         <Vecx<SampleBlock> as ValueEnDe>::encode(&hdr)
     };
 
-    let reloaded = pnk!(<Vecx<SampleBlock> as ValueEnDe>::decode(&hdr));
+    let mut reloaded = pnk!(<Vecx<SampleBlock> as ValueEnDe>::decode(&hdr));
 
     (0..cnt).for_each(|i| {
         assert_eq!(i, reloaded.get(i).unwrap().idx);
@@ -70,7 +70,7 @@ fn write() {
         rand::random::<u64>()
     )));
 
-    let hdr = Vecx::new();
+    let mut hdr = Vecx::new();
 
     hdr.insert(0, 0);
     assert_eq!(1, hdr.len());

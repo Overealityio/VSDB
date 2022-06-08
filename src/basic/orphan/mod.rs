@@ -114,7 +114,7 @@ impl<T> Copy for Orphan<T> {}
 
 impl<T: Default + ValueEnDe> Default for Orphan<T> {
     fn default() -> Self {
-        let hdr = MapxOrdRawKey::new();
+        let mut hdr = MapxOrdRawKey::new();
         hdr.insert_ref(&[], &T::default());
         Self { inner: hdr }
     }
@@ -128,7 +128,7 @@ where
     T: ValueEnDe,
 {
     pub fn new(v: T) -> Self {
-        let hdr = MapxOrdRawKey::new();
+        let mut hdr = MapxOrdRawKey::new();
         hdr.insert_ref(&[], &v);
         Self { inner: hdr }
     }
@@ -138,7 +138,7 @@ where
         self.inner.get(&[]).unwrap()
     }
 
-    fn set_value_ref(&self, v: &T) {
+    fn set_value_ref(&mut self, v: &T) {
         self.inner.set_value_ref(&[], v);
     }
 
@@ -149,7 +149,7 @@ where
     ///     - `*(<Orphan>).get_mut() = ...`
     /// - **NEVER** do this:
     ///     - `*(&mut <Orphan>) = Orphan::new(...)`
-    pub fn get_mut(&self) -> ValueMut<'_, T> {
+    pub fn get_mut(&mut self) -> ValueMut<'_, T> {
         let value = self.get_value();
         ValueMut { hdr: self, value }
     }
@@ -290,7 +290,7 @@ pub struct ValueMut<'a, T>
 where
     T: ValueEnDe,
 {
-    hdr: &'a Orphan<T>,
+    hdr: &'a mut Orphan<T>,
     value: T,
 }
 

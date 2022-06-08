@@ -8,14 +8,14 @@ build:
 release:
 	cargo build --release
 
-lint:
+lint: example
 	cargo clippy
 	cargo clippy --features "compress"
 	cargo check --tests
 	cargo check --benches
 	cargo check --examples
 
-lintall: lint
+lintall: lint exampleall
 	cargo clippy --no-default-features --features "derive,rocks_engine,compress,msgpack_codec"
 	cargo check --tests --no-default-features --features "derive,rocks_engine,msgpack_codec"
 	cargo check --benches --no-default-features --features "derive,rocks_engine,msgpack_codec"
@@ -33,7 +33,7 @@ test: example
 	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo test --tests --bins --features "derive" -- --test-threads=1
 
-exampleall:
+exampleall: example
 	- rm -rf ~/.vsdb /tmp/vsdb_testing
 	cargo run --no-default-features --features "derive,rocks_engine,msgpack_codec" --example derive_vs
 	cargo run --no-default-features --features "derive,rocks_engine,msgpack_codec" --example web_server

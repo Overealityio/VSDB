@@ -10,7 +10,7 @@ fn read_write(c: &mut Criterion) {
         .sample_size(100);
 
     let mut rng = rand::thread_rng();
-    let db = VecxVs::new();
+    let mut db = VecxVs::new();
     db.version_create(VersionName(b"version0")).unwrap();
 
     group.bench_function(" write ", |b| {

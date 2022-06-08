@@ -17,7 +17,7 @@ fn basic_cases() {
 
     let cnt = 200;
     let hdr = {
-        let hdr_i = MapxRawVs::new();
+        let mut hdr_i = MapxRawVs::new();
         assert!(!hdr_i.branch_has_versions(INITIAL_BRANCH_NAME));
         hdr_i.version_create(VersionName(b"test")).unwrap();
         assert!(hdr_i.branch_has_versions(INITIAL_BRANCH_NAME));
@@ -787,7 +787,7 @@ fn version_rebase() {
         rand::random::<u64>()
     )));
 
-    let hdr = MapxRawVs::new();
+    let mut hdr = MapxRawVs::new();
 
     pnk!(hdr.version_create(VersionName(&[0])));
     pnk!(hdr.insert(&[0], &[0]));

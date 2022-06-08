@@ -93,7 +93,7 @@ where
     }
 
     #[inline(always)]
-    pub fn get_mut(&self, key: &[u8]) -> Option<ValueMut<'_, V>> {
+    pub fn get_mut(&mut self, key: &[u8]) -> Option<ValueMut<'_, V>> {
         self.inner.get(key).map(|v| {
             ValueMut::new(
                 self,
@@ -133,12 +133,12 @@ where
     }
 
     #[inline(always)]
-    pub fn insert(&self, key: RawKey, value: V) -> Option<V> {
+    pub fn insert(&mut self, key: RawKey, value: V) -> Option<V> {
         self.insert_ref(&key, &value)
     }
 
     #[inline(always)]
-    pub fn insert_ref(&self, key: &[u8], value: &V) -> Option<V> {
+    pub fn insert_ref(&mut self, key: &[u8], value: &V) -> Option<V> {
         self.inner
             .insert(key, &value.encode())
             .map(|v| <V as ValueEnDe>::decode(&v).unwrap())
@@ -147,7 +147,7 @@ where
     // used to support efficient versioned-implementations
     #[inline(always)]
     pub(crate) fn insert_ref_encoded_value(
-        &self,
+        &mut self,
         key: &[u8],
         value: &[u8],
     ) -> Option<V> {
@@ -157,22 +157,22 @@ where
     }
 
     #[inline(always)]
-    pub fn set_value(&self, key: RawKey, value: V) {
+    pub fn set_value(&mut self, key: RawKey, value: V) {
         self.set_value_ref(&key, &value);
     }
 
     #[inline(always)]
-    pub fn set_value_ref(&self, key: &[u8], value: &V) {
+    pub fn set_value_ref(&mut self, key: &[u8], value: &V) {
         self.inner.insert(key, &value.encode());
     }
 
     #[inline(always)]
-    pub fn entry(&self, key: RawKey) -> Entry<'_, V> {
+    pub fn entry(&mut self, key: RawKey) -> Entry<'_, V> {
         Entry { key, hdr: self }
     }
 
     #[inline(always)]
-    pub fn entry_ref<'a>(&'a self, key: &'a [u8]) -> EntryRef<'a, V> {
+    pub fn entry_ref<'a>(&'a mut self, key: &'a [u8]) -> EntryRef<'a, V> {
         EntryRef { key, hdr: self }
     }
 
@@ -228,19 +228,19 @@ where
     }
 
     #[inline(always)]
-    pub fn remove(&self, key: &[u8]) -> Option<V> {
+    pub fn remove(&mut self, key: &[u8]) -> Option<V> {
         self.inner
             .remove(key)
             .map(|v| <V as ValueEnDe>::decode(&v).unwrap())
     }
 
     #[inline(always)]
-    pub fn unset_value(&self, key: &[u8]) {
+    pub fn unset_value(&mut self, key: &[u8]) {
         self.inner.remove(key);
     }
 
     #[inline(always)]
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 }
@@ -250,7 +250,7 @@ pub struct ValueMut<'a, V>
 where
     V: ValueEnDe,
 {
-    hdr: &'a MapxOrdRawKey<V>,
+    hdr: &'a mut MapxOrdRawKey<V>,
     key: RawKey,
     value: V,
 }
@@ -259,7 +259,7 @@ impl<'a, V> ValueMut<'a, V>
 where
     V: ValueEnDe,
 {
-    pub fn new(hdr: &'a MapxOrdRawKey<V>, key: RawKey, value: V) -> Self {
+    pub fn new(hdr: &'a mut MapxOrdRawKey<V>, key: RawKey, value: V) -> Self {
         ValueMut { hdr, key, value }
     }
 }
@@ -297,7 +297,7 @@ where
     V: 'a + ValueEnDe,
 {
     pub key: RawKey,
-    pub hdr: &'a MapxOrdRawKey<V>,
+    pub hdr: &'a mut MapxOrdRawKey<V>,
 }
 
 impl<'a, V> Entry<'a, V>
@@ -317,7 +317,7 @@ where
     V: ValueEnDe,
 {
     key: &'a [u8],
-    hdr: &'a MapxOrdRawKey<V>,
+    hdr: &'a mut MapxOrdRawKey<V>,
 }
 
 impl<'a, V> EntryRef<'a, V>
