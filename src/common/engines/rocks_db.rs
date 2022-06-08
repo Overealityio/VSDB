@@ -23,7 +23,7 @@ use std::{
     thread::available_parallelism,
 };
 
-const DATA_SET_NUM: usize = 64;
+const DATA_SET_NUM: usize = 32;
 
 const META_KEY_MAX_KEYLEN: [u8; 1] = [u8::MAX];
 const META_KEY_BRANCH_ID: [u8; 1] = [u8::MAX - 1];
@@ -643,7 +643,7 @@ fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     cfg.set_prefix_extractor(SliceTransform::create_fixed_prefix(size_of::<Pre>()));
     cfg.increase_parallelism(cpunum);
     // cfg.set_num_levels(7);
-    cfg.set_max_open_files(8192);
+    cfg.set_max_open_files(16 * 1024);
     cfg.set_allow_mmap_writes(true);
     cfg.set_allow_mmap_reads(true);
     // cfg.set_use_direct_reads(true);
