@@ -301,7 +301,6 @@ impl Engine for RocksEngine {
                 data
             };
             pnk!(self.update_batch(data, i));
-            self.flush_engine();
         }
     }
 
@@ -646,7 +645,7 @@ fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     cfg.set_prefix_extractor(SliceTransform::create_fixed_prefix(size_of::<Pre>()));
     cfg.increase_parallelism(cpunum);
     // cfg.set_num_levels(7);
-    cfg.set_max_open_files(16 * 1024);
+    cfg.set_max_open_files(160 * 1024);
     cfg.set_allow_mmap_writes(true);
     cfg.set_allow_mmap_reads(true);
     // cfg.set_use_direct_reads(true);
