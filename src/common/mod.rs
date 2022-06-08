@@ -80,7 +80,7 @@ static VSDB_CUSTOM_DIR: Lazy<String> = Lazy::new(|| {
 });
 
 // flush in-memory cache to disk every N milliseconds
-const CACHE_FLUSH_ITV_MS: u64 = 1000;
+const CACHE_FLUSH_ITV_MS: u64 = 1;
 
 #[cfg(any(
     feature = "rocks_engine",
@@ -90,6 +90,7 @@ const CACHE_FLUSH_ITV_MS: u64 = 1000;
 pub(crate) static VSDB: Lazy<VsDB<engines::RocksDB>> = Lazy::new(|| {
     let res = pnk!(VsDB::new());
     thread::spawn(|| {
+        sleep_ms!(1000);
         loop {
             sleep_ms!(CACHE_FLUSH_ITV_MS);
             VSDB.db.flush_cache();
@@ -102,6 +103,7 @@ pub(crate) static VSDB: Lazy<VsDB<engines::RocksDB>> = Lazy::new(|| {
 pub(crate) static VSDB: Lazy<VsDB<engines::Sled>> = Lazy::new(|| {
     let res = pnk!(VsDB::new());
     thread::spawn(|| {
+        sleep_ms!(1000);
         loop {
             sleep_ms!(CACHE_FLUSH_ITV_MS);
             VSDB.db.flush_cache();

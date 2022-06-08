@@ -50,10 +50,12 @@ bench:
 	cargo bench
 	du -sh ~/.vsdb
 
-benchall: bench
+bench_sled:
 	- rm -rf ~/.vsdb
 	cargo bench --no-default-features --features "sled_engine,msgpack_codec"
 	du -sh ~/.vsdb
+
+benchall: bench bench_sled
 
 fmt:
 	cargo +nightly fmt
