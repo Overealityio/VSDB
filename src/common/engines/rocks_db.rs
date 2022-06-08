@@ -4,7 +4,7 @@ use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawBytes,
     RawKey, RawValue, VersionID, INITIAL_BRANCH_ID, MB, PREFIX_SIZ, RESERVED_ID_CNT,
 };
-use ahash::{AHashMap, AHashSet};
+use ahash::AHashMap;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use rocksdb::{
@@ -13,10 +13,6 @@ use rocksdb::{
 };
 use ruc::*;
 use std::{
-    collections::{
-        btree_map::{Entry as BEntry, IntoIter as BIntoIter},
-        BTreeMap,
-    },
     mem::{self, size_of},
     ops::{Bound, RangeBounds},
     sync::{
@@ -315,6 +311,8 @@ impl Engine for RocksEngine {
     }
 
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> RocksIter {
+        self.flush_area_cache(area_idx);
+
         let inner = self
             .meta
             .prefix_iterator_cf(self.cf_hdr(area_idx), meta_prefix);
@@ -331,33 +329,7 @@ impl Engine for RocksEngine {
             ),
         );
 
-        let (buf_head, buf_middle) = {
-            let buf = self.cache.buf[area_idx].read();
-            (buf[0].clone(), buf[1].clone())
-        };
-
-        let (cache_updated, cache_deleted) = buf_middle
-            .into_iter()
-            .chain(buf_head.into_iter())
-            .filter(|(k, _)| k[..PREFIX_SIZ] == meta_prefix[..])
-            .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
-            .fold((BTreeMap::new(), AHashSet::new()), |mut acc, (k, v)| {
-                if let Some(v) = v {
-                    acc.0.insert(k, v);
-                } else {
-                    acc.1.insert(k);
-                }
-                acc
-            });
-        let cache_iter = cache_updated.into_iter();
-
-        RocksIter {
-            cache_iter,
-            cache_deleted,
-            inner,
-            inner_rev,
-            candidate_values: BTreeMap::new(),
-        }
+        RocksIter { inner, inner_rev }
     }
 
     fn range<'a, R: RangeBounds<&'a [u8]>>(
@@ -366,6 +338,8 @@ impl Engine for RocksEngine {
         meta_prefix: PreBytes,
         bounds: R,
     ) -> RocksIter {
+        self.flush_area_cache(area_idx);
+
         let mut opt = ReadOptions::default();
         let mut opt_rev = ReadOptions::default();
 
@@ -420,37 +394,7 @@ impl Engine for RocksEngine {
             IteratorMode::From(&h, Direction::Reverse),
         );
 
-        let (buf_head, buf_middle) = {
-            let buf = self.cache.buf[area_idx].read();
-            (buf[0].clone(), buf[1].clone())
-        };
-
-        let (cache_updated, cache_deleted) = buf_middle
-            .into_iter()
-            .chain(buf_head.into_iter())
-            .filter(|(k, _)| {
-                k[..PREFIX_SIZ] == meta_prefix[..]
-                    && &k[..] >= l
-                    && &k[..] < h.as_slice()
-            })
-            .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
-            .fold((BTreeMap::new(), AHashSet::new()), |mut acc, (k, v)| {
-                if let Some(v) = v {
-                    acc.0.insert(k, v);
-                } else {
-                    acc.1.insert(k);
-                }
-                acc
-            });
-        let cache_iter = cache_updated.into_iter();
-
-        RocksIter {
-            cache_iter,
-            cache_deleted,
-            inner,
-            inner_rev,
-            candidate_values: BTreeMap::new(),
-        }
+        RocksIter { inner, inner_rev }
     }
 
     #[inline(always)]
@@ -528,74 +472,25 @@ impl Engine for RocksEngine {
 }
 
 pub struct RocksIter {
-    cache_iter: BIntoIter<RawKey, RawValue>,
-    cache_deleted: AHashSet<RawKey>,
-
     inner: DBIterator<'static>,
     inner_rev: DBIterator<'static>,
-
-    candidate_values: BTreeMap<RawKey, RawValue>,
 }
 
 impl Iterator for RocksIter {
     type Item = (RawKey, RawValue);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((k, v)) = self
-            .inner
+        self.inner
             .next()
             .map(|(ik, iv)| (ik[PREFIX_SIZ..].into(), iv))
-        {
-            if self.cache_deleted.contains(&k) {
-                continue;
-            } else if let BEntry::Vacant(e) = self.candidate_values.entry(k) {
-                e.insert(v);
-                break;
-            } else {
-                break;
-            }
-        }
-
-        if let Some((k, v)) = self.cache_iter.next() {
-            self.candidate_values.insert(k, v);
-        }
-
-        if let Some(k) = self.candidate_values.keys().next() {
-            let k = k.clone();
-            self.candidate_values.remove_entry(&k)
-        } else {
-            None
-        }
     }
 }
 
 impl DoubleEndedIterator for RocksIter {
     fn next_back(&mut self) -> Option<Self::Item> {
-        while let Some((k, v)) = self
-            .inner_rev
+        self.inner_rev
             .next()
             .map(|(ik, iv)| (ik[PREFIX_SIZ..].into(), iv))
-        {
-            if self.cache_deleted.contains(&k) {
-                continue;
-            } else if let BEntry::Vacant(e) = self.candidate_values.entry(k) {
-                e.insert(v);
-                break;
-            } else {
-                break;
-            }
-        }
-
-        if let Some((k, v)) = self.cache_iter.next_back() {
-            self.candidate_values.insert(k, v);
-        }
-
-        if let Some(k) = self.candidate_values.keys().next_back() {
-            let k = k.clone();
-            self.candidate_values.remove_entry(&k)
-        } else {
-            None
-        }
     }
 }
 
