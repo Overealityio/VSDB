@@ -110,6 +110,17 @@ impl RocksEngine {
         }
         self.meta.write(batch).c(d!())
     }
+
+    #[inline(always)]
+    fn flush_engine(&self) {
+        let mut opts = FlushOptions::default();
+        opts.set_wait(true);
+        self.meta.flush_opt(&opts).unwrap();
+
+        (0..DATA_SET_NUM).for_each(|i| {
+            self.meta.flush_cf_opt(self.cf_hdr(i), &opts).unwrap();
+        });
+    }
 }
 
 impl Engine for RocksEngine {
@@ -269,14 +280,7 @@ impl Engine for RocksEngine {
     #[inline(always)]
     fn flush(&self) {
         self.flush_cache();
-
-        let mut opts = FlushOptions::default();
-        opts.set_wait(true);
-        self.meta.flush_opt(&opts).unwrap();
-
-        (0..DATA_SET_NUM).for_each(|i| {
-            self.meta.flush_cf_opt(self.cf_hdr(i), &opts).unwrap();
-        });
+        self.flush_engine();
     }
 
     // flush cache every N seconds
@@ -294,6 +298,7 @@ impl Engine for RocksEngine {
                 data
             };
             pnk!(self.update_batch(data, i));
+            self.flush_engine();
         }
     }
 
@@ -629,11 +634,14 @@ fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     // avoid setting again on an opened DB
     info_omit!(vsdb_set_base_dir(&dir));
 
+    let cpunum = available_parallelism().map(|n| usize::from(n)).unwrap_or(8);
+    let cpunum = max!(cpunum, 16) as i32;
+
     let mut cfg = Options::default();
     cfg.create_if_missing(true);
     cfg.create_missing_column_families(true);
     cfg.set_prefix_extractor(SliceTransform::create_fixed_prefix(size_of::<Pre>()));
-    cfg.increase_parallelism(available_parallelism().c(d!())?.get() as i32);
+    cfg.increase_parallelism(cpunum);
     // cfg.set_num_levels(7);
     cfg.set_max_open_files(8192);
     cfg.set_allow_mmap_writes(true);
