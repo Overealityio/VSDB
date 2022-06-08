@@ -11,8 +11,8 @@ use std::{
     thread,
 };
 use vsdb::{
-    BranchName, MapxVs, OrphanVs, ValueEnDe, VecxVs, VersionName, VersionNameOwned, Vs,
-    VsMgmt,
+    vsdb_set_base_dir, BranchName, MapxVs, OrphanVs, ValueEnDe, VecxVs, VersionName,
+    VersionNameOwned, Vs, VsMgmt,
 };
 
 type Amount = u64;
@@ -192,6 +192,11 @@ impl Transaction {
 }
 
 fn main() {
+    pnk!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let (sender, reveiver) = channel();
 
     thread::spawn(move || {

@@ -469,6 +469,44 @@ impl Engine for RocksEngine {
             Some(new_len.to_be_bytes().into()),
         );
     }
+
+    #[allow(unused_variables)]
+    fn increase_instance_len(&self, instance_prefix: PreBytes) {
+        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+
+        let l = if let Some(v) = buf[0]
+            .get(&instance_prefix[..])
+            .or_else(|| buf[1].get(&instance_prefix[..]))
+        {
+            crate::parse_int!(v.as_ref().unwrap(), u64)
+        } else {
+            crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
+        };
+
+        buf[0].insert(
+            instance_prefix.to_vec().into(),
+            Some((l + 1).to_be_bytes().into()),
+        );
+    }
+
+    #[allow(unused_variables)]
+    fn decrease_instance_len(&self, instance_prefix: PreBytes) {
+        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+
+        let l = if let Some(v) = buf[0]
+            .get(&instance_prefix[..])
+            .or_else(|| buf[1].get(&instance_prefix[..]))
+        {
+            crate::parse_int!(v.as_ref().unwrap(), u64)
+        } else {
+            crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
+        };
+
+        buf[0].insert(
+            instance_prefix.to_vec().into(),
+            Some((l + 1).to_be_bytes().into()),
+        );
+    }
 }
 
 pub struct RocksIter {

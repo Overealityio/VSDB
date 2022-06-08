@@ -1,4 +1,4 @@
-use vsdb::Vs;
+use vsdb::{vsdb_set_base_dir, Vs};
 
 #[derive(Vs, Debug, Default)]
 struct VsDerive {
@@ -7,5 +7,10 @@ struct VsDerive {
 }
 
 fn main() {
+    pnk!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     dbg!(VsDerive::default());
 }

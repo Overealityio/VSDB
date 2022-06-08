@@ -5,7 +5,7 @@
 use ruc::*;
 use serde::{Deserialize, Serialize};
 use std::{sync::mpsc::channel, thread};
-use vsdb::{Mapx, ValueEnDe, Vecx};
+use vsdb::{vsdb_set_base_dir, Mapx, ValueEnDe, Vecx};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Animal {
@@ -78,6 +78,11 @@ impl AnimalHospital {
 }
 
 fn main() {
+    pnk!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let (sender, receiver) = channel();
 
     thread::spawn(move || {
