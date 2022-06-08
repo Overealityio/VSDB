@@ -13,7 +13,10 @@ use rocksdb::{
 };
 use ruc::*;
 use std::{
-    collections::{btree_map::IntoIter as BIntoIter, BTreeMap},
+    collections::{
+        btree_map::{Entry as BEntry, IntoIter as BIntoIter},
+        BTreeMap,
+    },
     mem::{self, size_of},
     ops::{Bound, RangeBounds},
     sync::{
@@ -536,10 +539,10 @@ impl Iterator for RocksIter {
         {
             if self.cache_deleted.contains(&k) {
                 continue;
-            } else if self.candidate_values.contains_key(&k) {
+            } else if let BEntry::Vacant(e) = self.candidate_values.entry(k) {
+                e.insert(v);
                 break;
             } else {
-                self.candidate_values.insert(k, v);
                 break;
             }
         }
@@ -566,10 +569,10 @@ impl DoubleEndedIterator for RocksIter {
         {
             if self.cache_deleted.contains(&k) {
                 continue;
-            } else if self.candidate_values.contains_key(&k) {
+            } else if let BEntry::Vacant(e) = self.candidate_values.entry(k) {
+                e.insert(v);
                 break;
             } else {
-                self.candidate_values.insert(k, v);
                 break;
             }
         }
@@ -634,7 +637,7 @@ fn rocksdb_open() -> Result<(DB, Vec<String>)> {
     // avoid setting again on an opened DB
     info_omit!(vsdb_set_base_dir(&dir));
 
-    let cpunum = available_parallelism().map(|n| usize::from(n)).unwrap_or(8);
+    let cpunum = available_parallelism().map(usize::from).unwrap_or(8);
     let cpunum = max!(cpunum, 16) as i32;
 
     let mut cfg = Options::default();

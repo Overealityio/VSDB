@@ -3,6 +3,10 @@ use crate::ValueEnDe;
 use super::*;
 use ruc::*;
 
+fn gen_sample(idx: usize) -> Box<[u8]> {
+    idx.to_be_bytes().to_vec().into_boxed_slice()
+}
+
 #[test]
 fn test_insert() {
     let hdr = VecxRaw::new();
@@ -138,4 +142,67 @@ fn test_last() {
     let value = pnk!(hdr.last());
     let val = pnk!(<usize as ValueEnDe>::decode(&value));
     assert_eq!(max - 1, val);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_0() {
+    let hdr = VecxRaw::new();
+    hdr.insert_ref(100, &gen_sample(0));
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_1() {
+    let hdr = VecxRaw::new();
+    hdr.insert(0, gen_sample(0));
+    hdr.insert_ref(100, &gen_sample(0));
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_2() {
+    let hdr = VecxRaw::new();
+    hdr.update_ref(100, &gen_sample(0));
+    hdr.insert(0, gen_sample(0));
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_3() {
+    let hdr = VecxRaw::new();
+    hdr.insert(0, gen_sample(0));
+    hdr.update_ref(100, &gen_sample(0));
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_4() {
+    let hdr = VecxRaw::new();
+    hdr.remove(100);
+    hdr.insert(0, gen_sample(0));
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_5() {
+    let hdr = VecxRaw::new();
+    hdr.insert(0, gen_sample(0));
+    hdr.remove(100);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_6() {
+    let hdr = VecxRaw::new();
+    hdr.swap_remove(100);
+    hdr.insert(0, gen_sample(0));
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_7() {
+    let hdr = VecxRaw::new();
+    hdr.insert(0, gen_sample(0));
+    hdr.swap_remove(100);
 }

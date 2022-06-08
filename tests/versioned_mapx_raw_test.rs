@@ -10,8 +10,12 @@ const INITIAL_BRANCH_NAME: BranchName<'static> = BranchName(b"master");
 
 #[test]
 fn basic_cases() {
+    info_omit!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let cnt = 200;
-    vsdb_set_base_dir("/tmp/.vsdb/versioned_mapx_raw_test").unwrap();
     let hdr = {
         let hdr_i = MapxRawVs::new();
         assert!(!hdr_i.branch_has_versions(INITIAL_BRANCH_NAME));
@@ -82,6 +86,11 @@ fn basic_cases() {
 #[test]
 #[allow(non_snake_case)]
 fn vcs_mgmt() {
+    info_omit!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let mut hdr = MapxRawVs::new();
     pnk!(hdr.version_create(VersionName(b"")));
 
@@ -637,6 +646,11 @@ fn default_branch_operations(hdr: &mut MapxRawVs) {
 
 #[test]
 fn prune() {
+    info_omit!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let mut hdr = MapxRawVs::new();
 
     // noop operation is ok
@@ -768,6 +782,11 @@ fn prune() {
 
 #[test]
 fn version_rebase() {
+    info_omit!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let hdr = MapxRawVs::new();
 
     pnk!(hdr.version_create(VersionName(&[0])));

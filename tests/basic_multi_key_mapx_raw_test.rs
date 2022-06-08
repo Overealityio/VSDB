@@ -3,7 +3,11 @@ use vsdb::{basic_multi_key::mapx_raw::MapxRawMk, vsdb_set_base_dir};
 
 #[test]
 fn basic_cases() {
-    vsdb_set_base_dir("/tmp/.vsdb/basic_multi_key_mapx_raw_test").unwrap();
+    info_omit!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let map = MapxRawMk::new(4);
 
     // key size mismatch

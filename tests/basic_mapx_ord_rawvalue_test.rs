@@ -4,8 +4,12 @@ use vsdb::{basic::mapx_ord_rawvalue::MapxOrdRawValue, vsdb_set_base_dir, ValueEn
 
 #[test]
 fn basic_cases() {
+    info_omit!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let cnt = 200;
-    vsdb_set_base_dir("/tmp/.vsdb/basic_mapx_ord_rawvalue_test").unwrap();
     let hdr = {
         let hdr_i = MapxOrdRawValue::new();
 

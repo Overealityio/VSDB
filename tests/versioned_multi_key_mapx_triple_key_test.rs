@@ -3,7 +3,11 @@ use vsdb::{vsdb_set_base_dir, MapxTkVs, VersionName, VsMgmt};
 
 #[test]
 fn basic_cases() {
-    vsdb_set_base_dir("/tmp/.vsdb/versioned_multi_key_mapx_triple_key_test").unwrap();
+    info_omit!(vsdb_set_base_dir(&format!(
+        "/tmp/vsdb_testing/{}",
+        rand::random::<u64>()
+    )));
+
     let map = MapxTkVs::new();
     pnk!(map.version_create(VersionName(b"")));
 

@@ -118,3 +118,66 @@ fn test_last() {
     let value = pnk!(hdr.last());
     assert_eq!(max - 1, value);
 }
+
+#[test]
+#[should_panic]
+fn write_out_of_index_0() {
+    let hdr = Vecx::new();
+    hdr.insert_ref(100, &0);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_1() {
+    let hdr = Vecx::new();
+    hdr.insert(0, 0);
+    hdr.insert_ref(100, &0);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_2() {
+    let hdr = Vecx::new();
+    hdr.update_ref(100, &0);
+    hdr.insert(0, 0);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_3() {
+    let hdr = Vecx::new();
+    hdr.insert(0, 0);
+    hdr.update_ref(100, &0);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_4() {
+    let hdr = Vecx::new();
+    hdr.remove(100);
+    hdr.insert(0, 0);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_5() {
+    let hdr = Vecx::new();
+    hdr.insert(0, 0);
+    hdr.remove(100);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_6() {
+    let hdr = Vecx::new();
+    hdr.swap_remove(100);
+    hdr.insert(0, 0);
+}
+
+#[test]
+#[should_panic]
+fn write_out_of_index_7() {
+    let hdr = Vecx::new();
+    hdr.insert(0, 0);
+    hdr.swap_remove(100);
+}
