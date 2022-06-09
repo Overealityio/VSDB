@@ -39,15 +39,15 @@ pub(crate) struct SledEngine {
 }
 
 impl SledEngine {
-    fn update_batch(&self, data: CacheMap, area_idx: usize) -> Result<()> {
+    fn update_batch(&self, data: &CacheMap, area_idx: usize) -> Result<()> {
         alt!(data.is_empty(), return Ok(()));
 
         let mut batch = Batch::default();
-        for (extended_key, value) in data.into_iter() {
+        for (extended_key, value) in data.iter() {
             if let Some(v) = value {
-                batch.insert(extended_key, v);
+                batch.insert(&extended_key[..], &v[..]);
             } else {
-                batch.remove(extended_key);
+                batch.remove(&extended_key[..]);
             }
         }
 
@@ -65,12 +65,13 @@ impl SledEngine {
         static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
         let x = LK.lock();
 
-        if let Some(mut buf) = self.cache.buf[area_idx].try_write() {
+        if let Some(mut buf0) = self.cache.buf0[area_idx].try_write() {
             if 0 == FLUSH_INDICATOR[area_idx].load(Ordering::Relaxed) {
-                let data = mem::take(&mut buf[0]);
-                buf[1] = data.clone();
-                drop(buf);
-                pnk!(self.update_batch(data, area_idx));
+                let mut buf1 = self.cache.buf1[area_idx].write();
+                buf1.clear();
+                mem::swap(&mut *buf0, &mut *buf1);
+                drop(buf0);
+                pnk!(self.update_batch(&buf1, area_idx));
             }
         }
     }
@@ -124,22 +125,25 @@ impl Engine for SledEngine {
     #[allow(unused_variables)]
     fn alloc_prefix(&self) -> Pre {
         // step 1
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let ret = if let Some(v) = buf[0]
+        let ret = if let Some(v) = buf0
             .get(&self.prefix_allocator.key[..])
-            .or_else(|| buf[1].get(&self.prefix_allocator.key[..]))
+            .or_else(|| buf1.get(&self.prefix_allocator.key[..]))
         {
             let ret = crate::parse_prefix!(v.as_ref().unwrap());
+            drop(buf1);
             ret
         } else {
+            drop(buf1);
             crate::parse_prefix!(
                 self.meta.get(self.prefix_allocator.key).unwrap().unwrap()
             )
         };
 
         // step 2
-        buf[0].insert(
+        buf0.insert(
             self.prefix_allocator.key.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -152,15 +156,18 @@ impl Engine for SledEngine {
     #[allow(unused_variables)]
     fn alloc_branch_id(&self) -> BranchID {
         // step 1
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let ret = if let Some(v) = buf[0]
+        let ret = if let Some(v) = buf0
             .get(&META_KEY_BRANCH_ID[..])
-            .or_else(|| buf[1].get(&META_KEY_BRANCH_ID[..]))
+            .or_else(|| buf1.get(&META_KEY_BRANCH_ID[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), BranchID);
+            drop(buf1);
             ret
         } else {
+            drop(buf1);
             crate::parse_int!(
                 self.meta.get(META_KEY_BRANCH_ID).unwrap().unwrap(),
                 BranchID
@@ -168,7 +175,7 @@ impl Engine for SledEngine {
         };
 
         // step 2
-        buf[0].insert(
+        buf0.insert(
             META_KEY_BRANCH_ID.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -181,15 +188,18 @@ impl Engine for SledEngine {
     #[allow(unused_variables)]
     fn alloc_version_id(&self) -> VersionID {
         // step 1
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let ret = if let Some(v) = buf[0]
+        let ret = if let Some(v) = buf0
             .get(&META_KEY_VERSION_ID[..])
-            .or_else(|| buf[1].get(&META_KEY_VERSION_ID[..]))
+            .or_else(|| buf1.get(&META_KEY_VERSION_ID[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), VersionID);
+            drop(buf1);
             ret
         } else {
+            drop(buf1);
             crate::parse_int!(
                 self.meta.get(META_KEY_VERSION_ID).unwrap().unwrap(),
                 VersionID
@@ -197,7 +207,7 @@ impl Engine for SledEngine {
         };
 
         // step 2
-        buf[0].insert(
+        buf0.insert(
             META_KEY_VERSION_ID.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -227,27 +237,40 @@ impl Engine for SledEngine {
 
     #[inline(always)]
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> SledIter {
-        let (buf_head, buf_middle) = {
-            let buf = self.cache.buf[area_idx].read();
-            FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
-            (buf[0].clone(), buf[1].clone())
-        };
+        let buf0 = self.cache.buf0[area_idx].read();
+        let buf1 = self.cache.buf1[area_idx].read();
+        FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
+        let buf_head = buf0.clone();
+        drop(buf0);
 
-        let (cache_updated, cache_deleted) = buf_head
+        let (mut cache_updated, mut cache_deleted) = buf_head
             .into_iter()
-            .chain(buf_middle.into_iter())
             .filter(|(k, _)| k[..PREFIX_SIZ] == meta_prefix[..])
             .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
             .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
-                if !acc.0.contains_key(&k) && !acc.1.contains(&k) {
-                    if let Some(v) = v {
-                        acc.0.insert(k, v);
-                    } else {
-                        acc.1.insert(k);
-                    }
+                if let Some(v) = v {
+                    acc.0.insert(k, v);
+                } else {
+                    acc.1.insert(k);
                 }
                 acc
             });
+
+        buf1.iter()
+            .filter(|(k, _)| k[..PREFIX_SIZ] == meta_prefix[..])
+            .for_each(|(k, v)| {
+                if !cache_updated.contains_key(&k[PREFIX_SIZ..])
+                    && !cache_deleted.contains(&k[PREFIX_SIZ..])
+                {
+                    let k = k[PREFIX_SIZ..].to_vec().into();
+                    if let Some(v) = v {
+                        cache_updated.insert(k, v.clone());
+                    } else {
+                        cache_deleted.insert(k);
+                    }
+                }
+            });
+
         let cache_iter = cache_updated.into_iter();
 
         SledIter {
@@ -292,29 +315,44 @@ impl Engine for SledEngine {
             Bound::Unbounded => Bound::Unbounded,
         };
 
-        let (buf_head, buf_middle) = {
-            let buf = self.cache.buf[area_idx].read();
-            FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
-            (buf[0].clone(), buf[1].clone())
-        };
+        let buf0 = self.cache.buf0[area_idx].read();
+        let buf1 = self.cache.buf1[area_idx].read();
+        FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
+        let buf_head = buf0.clone();
+        drop(buf0);
 
-        let (cache_updated, cache_deleted) = buf_head
+        let (mut cache_updated, mut cache_deleted) = buf_head
             .into_iter()
-            .chain(buf_middle.into_iter())
             .filter(|(k, _)| {
                 k[..PREFIX_SIZ] == meta_prefix[..] && bounds.contains(&&k[PREFIX_SIZ..])
             })
             .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
             .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
-                if !acc.0.contains_key(&k) && !acc.1.contains(&k) {
-                    if let Some(v) = v {
-                        acc.0.insert(k, v);
-                    } else {
-                        acc.1.insert(k);
-                    }
+                if let Some(v) = v {
+                    acc.0.insert(k, v);
+                } else {
+                    acc.1.insert(k);
                 }
                 acc
             });
+
+        buf1.iter()
+            .filter(|(k, _)| {
+                k[..PREFIX_SIZ] == meta_prefix[..] && bounds.contains(&&k[PREFIX_SIZ..])
+            })
+            .for_each(|(k, v)| {
+                if !cache_updated.contains_key(&k[PREFIX_SIZ..])
+                    && !cache_deleted.contains(&k[PREFIX_SIZ..])
+                {
+                    let k = k[PREFIX_SIZ..].to_vec().into();
+                    if let Some(v) = v {
+                        cache_updated.insert(k, v.clone());
+                    } else {
+                        cache_deleted.insert(k);
+                    }
+                }
+            });
+
         let cache_iter = cache_updated.into_iter();
 
         SledIter {
@@ -337,14 +375,15 @@ impl Engine for SledEngine {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
 
-        let buf = self.cache.buf[area_idx].read();
+        let buf0 = self.cache.buf0[area_idx].read();
+        let buf1 = self.cache.buf1[area_idx].read();
 
-        if let Some(v) = buf[0].get(&k[..]).or_else(|| buf[1].get(&k[..])) {
+        if let Some(v) = buf0.get(&k[..]).or_else(|| buf1.get(&k[..])) {
             let res = v.clone();
-            drop(buf);
+            drop(buf0);
             res
         } else {
-            drop(buf);
+            drop(buf0);
             self.areas[area_idx]
                 .get(&k)
                 .unwrap()
@@ -364,9 +403,10 @@ impl Engine for SledEngine {
         k.extend_from_slice(key);
         let k = k.into_boxed_slice();
 
-        let mut buf = self.cache.buf[area_idx].write();
+        let mut buf0 = self.cache.buf0[area_idx].write();
+        let buf1 = self.cache.buf1[area_idx].read();
 
-        let old_v = match buf[0].get(&k[..]).or_else(|| buf[1].get(&k[..])) {
+        let old_v = match buf0.get(&k[..]).or_else(|| buf1.get(&k[..])) {
             Some(v) => v.clone(),
             None => self.areas[area_idx]
                 .get(&k)
@@ -380,7 +420,7 @@ impl Engine for SledEngine {
             }
         }
 
-        buf[0].insert(k, Some(value.to_vec().into()));
+        buf0.insert(k, Some(value.to_vec().into()));
         old_v
     }
 
@@ -395,9 +435,10 @@ impl Engine for SledEngine {
         k.extend_from_slice(key);
         let k = k.into_boxed_slice();
 
-        let mut buf = self.cache.buf[area_idx].write();
+        let mut buf0 = self.cache.buf0[area_idx].write();
+        let buf1 = self.cache.buf1[area_idx].write();
 
-        let old_v = match buf[0].get(&k[..]).or_else(|| buf[1].get(&k[..])) {
+        let old_v = match buf0.get(&k[..]).or_else(|| buf1.get(&k[..])) {
             Some(v) => v.clone(),
             None => self.areas[area_idx]
                 .get(&k)
@@ -406,7 +447,7 @@ impl Engine for SledEngine {
         };
 
         if old_v.is_some() {
-            buf[0].insert(k, None);
+            buf0.insert(k, None);
         }
 
         old_v
@@ -414,24 +455,25 @@ impl Engine for SledEngine {
 
     #[inline(always)]
     fn get_instance_len(&self, instance_prefix: PreBytes) -> u64 {
-        let buf = self.cache.buf[DATA_SET_NUM].read();
+        let buf0 = self.cache.buf0[DATA_SET_NUM].read();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        if let Some(v) = buf[0]
+        if let Some(v) = buf0
             .get(&instance_prefix[..])
-            .or_else(|| buf[1].get(&instance_prefix[..]))
+            .or_else(|| buf1.get(&instance_prefix[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), u64);
-            drop(buf);
+            drop(buf0);
             ret
         } else {
-            drop(buf);
+            drop(buf0);
             crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
         }
     }
 
     #[inline(always)]
     fn set_instance_len(&self, instance_prefix: PreBytes, new_len: u64) {
-        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+        self.cache.buf0[DATA_SET_NUM].write().insert(
             instance_prefix.to_vec().into(),
             Some(new_len.to_be_bytes().into()),
         );
@@ -439,18 +481,19 @@ impl Engine for SledEngine {
 
     #[inline(always)]
     fn increase_instance_len(&self, instance_prefix: PreBytes) {
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let l = if let Some(v) = buf[0]
+        let l = if let Some(v) = buf0
             .get(&instance_prefix[..])
-            .or_else(|| buf[1].get(&instance_prefix[..]))
+            .or_else(|| buf1.get(&instance_prefix[..]))
         {
             crate::parse_int!(v.as_ref().unwrap(), u64)
         } else {
             crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
         };
 
-        buf[0].insert(
+        buf0.insert(
             instance_prefix.to_vec().into(),
             Some((l + 1).to_be_bytes().into()),
         );
@@ -458,18 +501,19 @@ impl Engine for SledEngine {
 
     #[inline(always)]
     fn decrease_instance_len(&self, instance_prefix: PreBytes) {
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].write();
 
-        let l = if let Some(v) = buf[0]
+        let l = if let Some(v) = buf0
             .get(&instance_prefix[..])
-            .or_else(|| buf[1].get(&instance_prefix[..]))
+            .or_else(|| buf1.get(&instance_prefix[..]))
         {
             crate::parse_int!(v.as_ref().unwrap(), u64)
         } else {
             crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
         };
 
-        buf[0].insert(
+        buf0.insert(
             instance_prefix.to_vec().into(),
             Some((l - 1).to_be_bytes().into()),
         );
@@ -596,14 +640,18 @@ struct Cache {
     // NOTE:
     // the last item is the cache of meta data,
     // aka `cache_map[DATA_SET_NUM]`
-    buf: Vec<Arc<RwLock<[CacheMap; 2]>>>,
+    buf0: Vec<Arc<RwLock<CacheMap>>>,
+    buf1: Vec<Arc<RwLock<CacheMap>>>,
 }
 
 impl Cache {
     fn new() -> Self {
         Self {
-            buf: (0..=DATA_SET_NUM)
-                .map(|_| Arc::new(RwLock::new([HashMap::new(), HashMap::new()])))
+            buf0: (0..=DATA_SET_NUM)
+                .map(|_| Arc::new(RwLock::new(HashMap::new())))
+                .collect(),
+            buf1: (0..=DATA_SET_NUM)
+                .map(|_| Arc::new(RwLock::new(HashMap::new())))
                 .collect(),
         }
     }
