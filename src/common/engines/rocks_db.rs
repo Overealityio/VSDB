@@ -4,7 +4,7 @@ use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawBytes,
     RawKey, RawValue, VersionID, INITIAL_BRANCH_ID, MB, PREFIX_SIZ, RESERVED_ID_CNT,
 };
-use ahash::AHashMap as HashMap;
+use ahash::{AHashMap as HashMap, AHashSet as HashSet};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use rocksdb::{
@@ -13,16 +13,20 @@ use rocksdb::{
 };
 use ruc::*;
 use std::{
+    collections::{
+        btree_map::{Entry as BEntry, IntoIter as BIntoIter},
+        BTreeMap,
+    },
     mem::{self, size_of},
     ops::{Bound, RangeBounds},
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
     thread::available_parallelism,
 };
 
-const DATA_SET_NUM: usize = 64;
+const DATA_SET_NUM: usize = 32;
 
 const META_KEY_MAX_KEYLEN: [u8; 1] = [u8::MAX];
 const META_KEY_BRANCH_ID: [u8; 1] = [u8::MAX - 1];
@@ -30,6 +34,9 @@ const META_KEY_VERSION_ID: [u8; 1] = [u8::MAX - 2];
 const META_KEY_PREFIX_ALLOCATOR: [u8; 1] = [u8::MIN];
 
 static HDR: Lazy<(DB, Vec<String>)> = Lazy::new(|| rocksdb_open().unwrap());
+
+static FLUSH_INDICATOR: Lazy<Vec<AtomicU64>> =
+    Lazy::new(|| (0..=DATA_SET_NUM).map(|_| AtomicU64::new(0)).collect());
 
 pub(crate) struct RocksEngine {
     meta: &'static DB,
@@ -40,23 +47,6 @@ pub(crate) struct RocksEngine {
 }
 
 impl RocksEngine {
-    #[inline(always)]
-    fn get_by_extended_key(&self, area_idx: usize, ex_key: &[u8]) -> Option<RawValue> {
-        let buf = self.cache.buf[area_idx].read();
-
-        if let Some(v) = buf[0].get(ex_key).or_else(|| buf[1].get(ex_key)) {
-            let res = v.clone();
-            drop(buf);
-            res
-        } else {
-            drop(buf);
-            self.meta
-                .get_cf(self.cf_hdr(area_idx), ex_key)
-                .unwrap()
-                .map(|v| v.into_boxed_slice())
-        }
-    }
-
     #[inline(always)]
     fn cf_hdr(&self, area_idx: usize) -> &ColumnFamily {
         self.meta.cf_handle(self.areas[area_idx]).unwrap()
@@ -71,7 +61,7 @@ impl RocksEngine {
     fn set_max_key_len(&self, len: usize) {
         self.max_keylen.store(len, Ordering::Relaxed);
 
-        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+        self.cache.buf0[DATA_SET_NUM].write().insert(
             META_KEY_MAX_KEYLEN.to_vec().into(),
             Some(len.to_be_bytes().into()),
         );
@@ -93,11 +83,11 @@ impl RocksEngine {
         max_guard
     }
 
-    fn update_batch(&self, data: CacheMap, area_idx: usize) -> Result<()> {
+    fn update_batch(&self, data: &CacheMap, area_idx: usize) -> Result<()> {
         alt!(data.is_empty(), return Ok(()));
 
         let mut batch = WriteBatch::default();
-        for (extended_key, value) in data.into_iter() {
+        for (extended_key, value) in data.iter() {
             if let Some(v) = value {
                 if DATA_SET_NUM == area_idx {
                     // update meta
@@ -118,14 +108,15 @@ impl RocksEngine {
         static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
         let x = LK.lock();
 
-        let data = {
-            let mut buf = self.cache.buf[area_idx].write();
-            let data = mem::take(&mut buf[0]);
-            buf[1] = data.clone();
-            data
-        };
-
-        pnk!(self.update_batch(data, area_idx));
+        if let Some(mut buf0) = self.cache.buf0[area_idx].try_write() {
+            if 0 == FLUSH_INDICATOR[area_idx].load(Ordering::Relaxed) {
+                let mut buf1 = self.cache.buf1[area_idx].write();
+                buf1.clear();
+                mem::swap(&mut *buf0, &mut *buf1);
+                drop(buf0);
+                pnk!(self.update_batch(&buf1, area_idx));
+            }
+        }
     }
 
     #[inline(always)]
@@ -193,22 +184,25 @@ impl Engine for RocksEngine {
     #[allow(unused_variables)]
     fn alloc_prefix(&self) -> Pre {
         // step 1
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let ret = if let Some(v) = buf[0]
+        let ret = if let Some(v) = buf0
             .get(&self.prefix_allocator.key[..])
-            .or_else(|| buf[1].get(&self.prefix_allocator.key[..]))
+            .or_else(|| buf1.get(&self.prefix_allocator.key[..]))
         {
             let ret = crate::parse_prefix!(v.as_ref().unwrap());
+            drop(buf1);
             ret
         } else {
+            drop(buf1);
             crate::parse_prefix!(
                 self.meta.get(self.prefix_allocator.key).unwrap().unwrap()
             )
         };
 
         // step 2
-        buf[0].insert(
+        buf0.insert(
             self.prefix_allocator.key.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -221,15 +215,18 @@ impl Engine for RocksEngine {
     #[allow(unused_variables)]
     fn alloc_branch_id(&self) -> BranchID {
         // step 1
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let ret = if let Some(v) = buf[0]
+        let ret = if let Some(v) = buf0
             .get(&META_KEY_BRANCH_ID[..])
-            .or_else(|| buf[1].get(&META_KEY_BRANCH_ID[..]))
+            .or_else(|| buf1.get(&META_KEY_BRANCH_ID[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), BranchID);
+            drop(buf1);
             ret
         } else {
+            drop(buf1);
             crate::parse_int!(
                 self.meta.get(META_KEY_BRANCH_ID).unwrap().unwrap(),
                 BranchID
@@ -237,7 +234,7 @@ impl Engine for RocksEngine {
         };
 
         // step 2
-        buf[0].insert(
+        buf0.insert(
             META_KEY_BRANCH_ID.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -250,15 +247,18 @@ impl Engine for RocksEngine {
     #[allow(unused_variables)]
     fn alloc_version_id(&self) -> VersionID {
         // step 1
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let ret = if let Some(v) = buf[0]
+        let ret = if let Some(v) = buf0
             .get(&META_KEY_VERSION_ID[..])
-            .or_else(|| buf[1].get(&META_KEY_VERSION_ID[..]))
+            .or_else(|| buf1.get(&META_KEY_VERSION_ID[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), VersionID);
+            drop(buf1);
             ret
         } else {
+            drop(buf1);
             crate::parse_int!(
                 self.meta.get(META_KEY_VERSION_ID).unwrap().unwrap(),
                 VersionID
@@ -266,7 +266,7 @@ impl Engine for RocksEngine {
         };
 
         // step 2
-        buf[0].insert(
+        buf0.insert(
             META_KEY_VERSION_ID.to_vec().into(),
             Some((1 + ret).to_be_bytes().into()),
         );
@@ -295,8 +295,6 @@ impl Engine for RocksEngine {
     }
 
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> RocksIter {
-        self.flush_area_cache(area_idx);
-
         let inner = self
             .meta
             .prefix_iterator_cf(self.cf_hdr(area_idx), meta_prefix);
@@ -313,7 +311,50 @@ impl Engine for RocksEngine {
             ),
         );
 
-        RocksIter { inner, inner_rev }
+        let buf0 = self.cache.buf0[area_idx].read();
+        let buf1 = self.cache.buf1[area_idx].read();
+        FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
+        let buf_head = buf0.clone();
+        drop(buf0);
+
+        let (mut cache_updated, mut cache_deleted) = buf_head
+            .into_iter()
+            .filter(|(k, _)| k[..PREFIX_SIZ] == meta_prefix[..])
+            .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
+            .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
+                if let Some(v) = v {
+                    acc.0.insert(k, v);
+                } else {
+                    acc.1.insert(k);
+                }
+                acc
+            });
+
+        buf1.iter()
+            .filter(|(k, _)| k[..PREFIX_SIZ] == meta_prefix[..])
+            .for_each(|(k, v)| {
+                if !cache_updated.contains_key(&k[PREFIX_SIZ..])
+                    && !cache_deleted.contains(&k[PREFIX_SIZ..])
+                {
+                    let k = k[PREFIX_SIZ..].to_vec().into();
+                    if let Some(v) = v {
+                        cache_updated.insert(k, v.clone());
+                    } else {
+                        cache_deleted.insert(k);
+                    }
+                }
+            });
+
+        let cache_iter = cache_updated.into_iter();
+
+        RocksIter {
+            inner,
+            inner_rev,
+
+            cache_iter,
+            cache_deleted,
+            candidate_values: BTreeMap::new(),
+        }
     }
 
     fn range<'a, R: RangeBounds<&'a [u8]>>(
@@ -322,8 +363,6 @@ impl Engine for RocksEngine {
         meta_prefix: PreBytes,
         bounds: R,
     ) -> RocksIter {
-        self.flush_area_cache(area_idx);
-
         let mut opt = ReadOptions::default();
         let mut opt_rev = ReadOptions::default();
 
@@ -378,7 +417,54 @@ impl Engine for RocksEngine {
             IteratorMode::From(&h, Direction::Reverse),
         );
 
-        RocksIter { inner, inner_rev }
+        let buf0 = self.cache.buf0[area_idx].read();
+        let buf1 = self.cache.buf1[area_idx].read();
+        FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
+        let buf_head = buf0.clone();
+        drop(buf0);
+
+        let (mut cache_updated, mut cache_deleted) = buf_head
+            .into_iter()
+            .filter(|(k, _)| {
+                k[..PREFIX_SIZ] == meta_prefix[..] && bounds.contains(&&k[PREFIX_SIZ..])
+            })
+            .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
+            .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
+                if let Some(v) = v {
+                    acc.0.insert(k, v);
+                } else {
+                    acc.1.insert(k);
+                }
+                acc
+            });
+
+        buf1.iter()
+            .filter(|(k, _)| {
+                k[..PREFIX_SIZ] == meta_prefix[..] && bounds.contains(&&k[PREFIX_SIZ..])
+            })
+            .for_each(|(k, v)| {
+                if !cache_updated.contains_key(&k[PREFIX_SIZ..])
+                    && !cache_deleted.contains(&k[PREFIX_SIZ..])
+                {
+                    let k = k[PREFIX_SIZ..].to_vec().into();
+                    if let Some(v) = v {
+                        cache_updated.insert(k, v.clone());
+                    } else {
+                        cache_deleted.insert(k);
+                    }
+                }
+            });
+
+        let cache_iter = cache_updated.into_iter();
+
+        RocksIter {
+            inner,
+            inner_rev,
+
+            cache_iter,
+            cache_deleted,
+            candidate_values: BTreeMap::new(),
+        }
     }
 
     #[inline(always)]
@@ -390,7 +476,21 @@ impl Engine for RocksEngine {
     ) -> Option<RawValue> {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
-        self.get_by_extended_key(area_idx, &k)
+
+        let buf0 = self.cache.buf0[area_idx].read();
+        let buf1 = self.cache.buf1[area_idx].read();
+
+        if let Some(v) = buf0.get(&k[..]).or_else(|| buf1.get(&k[..])) {
+            let res = v.clone();
+            drop(buf0);
+            res
+        } else {
+            drop(buf0);
+            self.meta
+                .get_cf(self.cf_hdr(area_idx), &k[..])
+                .unwrap()
+                .map(|v| v.to_vec().into())
+        }
     }
 
     fn insert(
@@ -408,8 +508,25 @@ impl Engine for RocksEngine {
             self.set_max_key_len(key.len());
         }
 
-        let old_v = self.get_by_extended_key(area_idx, &k);
-        self.cache.buf[area_idx].write()[0].insert(k, Some(value.to_vec().into()));
+        let mut buf0 = self.cache.buf0[area_idx].write();
+        let buf1 = self.cache.buf1[area_idx].read();
+
+        let old_v = match buf0.get(&k[..]).or_else(|| buf1.get(&k[..])) {
+            Some(v) => v.clone(),
+            None => self
+                .meta
+                .get_cf(self.cf_hdr(area_idx), &k)
+                .unwrap()
+                .map(|v| v.to_vec().into()),
+        };
+
+        if let Some(v) = old_v.as_ref() {
+            if value == &v[..] {
+                return old_v;
+            }
+        }
+
+        buf0.insert(k, Some(value.to_vec().into()));
         old_v
     }
 
@@ -424,67 +541,86 @@ impl Engine for RocksEngine {
         k.extend_from_slice(key);
         let k = k.into_boxed_slice();
 
-        let old_v = self.get_by_extended_key(area_idx, &k);
-        self.cache.buf[area_idx].write()[0].insert(k, None);
+        let mut buf0 = self.cache.buf0[area_idx].write();
+        let buf1 = self.cache.buf1[area_idx].write();
+
+        let old_v = match buf0.get(&k[..]).or_else(|| buf1.get(&k[..])) {
+            Some(v) => v.clone(),
+            None => self
+                .meta
+                .get_cf(self.cf_hdr(area_idx), &k[..])
+                .unwrap()
+                .map(|v| v.to_vec().into()),
+        };
+
+        if old_v.is_some() {
+            buf0.insert(k, None);
+        }
+
         old_v
     }
 
     #[inline(always)]
     fn get_instance_len(&self, instance_prefix: PreBytes) -> u64 {
-        let buf = self.cache.buf[DATA_SET_NUM].read();
+        let buf0 = self.cache.buf0[DATA_SET_NUM].read();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        if let Some(v) = buf[0]
+        if let Some(v) = buf0
             .get(&instance_prefix[..])
-            .or_else(|| buf[1].get(&instance_prefix[..]))
+            .or_else(|| buf1.get(&instance_prefix[..]))
         {
             let ret = crate::parse_int!(v.as_ref().unwrap(), u64);
-            drop(buf);
+            drop(buf0);
             ret
         } else {
-            drop(buf);
+            drop(buf0);
             crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
         }
     }
 
     #[inline(always)]
     fn set_instance_len(&self, instance_prefix: PreBytes, new_len: u64) {
-        self.cache.buf[DATA_SET_NUM].write()[0].insert(
+        self.cache.buf0[DATA_SET_NUM].write().insert(
             instance_prefix.to_vec().into(),
             Some(new_len.to_be_bytes().into()),
         );
     }
 
+    #[inline(always)]
     fn increase_instance_len(&self, instance_prefix: PreBytes) {
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].read();
 
-        let l = if let Some(v) = buf[0]
+        let l = if let Some(v) = buf0
             .get(&instance_prefix[..])
-            .or_else(|| buf[1].get(&instance_prefix[..]))
+            .or_else(|| buf1.get(&instance_prefix[..]))
         {
             crate::parse_int!(v.as_ref().unwrap(), u64)
         } else {
             crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
         };
 
-        buf[0].insert(
+        buf0.insert(
             instance_prefix.to_vec().into(),
             Some((l + 1).to_be_bytes().into()),
         );
     }
 
+    #[inline(always)]
     fn decrease_instance_len(&self, instance_prefix: PreBytes) {
-        let mut buf = self.cache.buf[DATA_SET_NUM].write();
+        let mut buf0 = self.cache.buf0[DATA_SET_NUM].write();
+        let buf1 = self.cache.buf1[DATA_SET_NUM].write();
 
-        let l = if let Some(v) = buf[0]
+        let l = if let Some(v) = buf0
             .get(&instance_prefix[..])
-            .or_else(|| buf[1].get(&instance_prefix[..]))
+            .or_else(|| buf1.get(&instance_prefix[..]))
         {
             crate::parse_int!(v.as_ref().unwrap(), u64)
         } else {
             crate::parse_int!(self.meta.get(instance_prefix).unwrap().unwrap(), u64)
         };
 
-        buf[0].insert(
+        buf0.insert(
             instance_prefix.to_vec().into(),
             Some((l - 1).to_be_bytes().into()),
         );
@@ -494,23 +630,71 @@ impl Engine for RocksEngine {
 pub struct RocksIter {
     inner: DBIterator<'static>,
     inner_rev: DBIterator<'static>,
+
+    cache_iter: BIntoIter<RawKey, RawValue>,
+    cache_deleted: HashSet<RawKey>,
+    candidate_values: BTreeMap<RawKey, RawValue>,
 }
 
 impl Iterator for RocksIter {
     type Item = (RawKey, RawValue);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
+        while let Some((k, v)) = self
+            .inner
             .next()
             .map(|(ik, iv)| (ik[PREFIX_SIZ..].into(), iv))
+        {
+            if self.cache_deleted.contains(&k) {
+                continue;
+            } else if let BEntry::Vacant(e) = self.candidate_values.entry(k) {
+                e.insert(v);
+                break;
+            } else {
+                break;
+            }
+        }
+
+        if let Some((k, v)) = self.cache_iter.next() {
+            self.candidate_values.insert(k, v);
+        }
+
+        if let Some(k) = self.candidate_values.keys().next() {
+            let k = k.clone();
+            self.candidate_values.remove_entry(&k)
+        } else {
+            None
+        }
     }
 }
 
 impl DoubleEndedIterator for RocksIter {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner_rev
+        while let Some((k, v)) = self
+            .inner_rev
             .next()
             .map(|(ik, iv)| (ik[PREFIX_SIZ..].into(), iv))
+        {
+            if self.cache_deleted.contains(&k) {
+                continue;
+            } else if let BEntry::Vacant(e) = self.candidate_values.entry(k) {
+                e.insert(v);
+                break;
+            } else {
+                break;
+            }
+        }
+
+        if let Some((k, v)) = self.cache_iter.next_back() {
+            self.candidate_values.insert(k, v);
+        }
+
+        if let Some(k) = self.candidate_values.keys().next_back() {
+            let k = k.clone();
+            self.candidate_values.remove_entry(&k)
+        } else {
+            None
+        }
     }
 }
 
@@ -542,14 +726,18 @@ struct Cache {
     // NOTE:
     // the last item is the cache of meta data,
     // aka `cache_map[DATA_SET_NUM]`
-    buf: Vec<Arc<RwLock<[CacheMap; 2]>>>,
+    buf0: Vec<Arc<RwLock<CacheMap>>>,
+    buf1: Vec<Arc<RwLock<CacheMap>>>,
 }
 
 impl Cache {
     fn new() -> Self {
         Self {
-            buf: (0..=DATA_SET_NUM)
-                .map(|_| Arc::new(RwLock::new([HashMap::new(), HashMap::new()])))
+            buf0: (0..=DATA_SET_NUM)
+                .map(|_| Arc::new(RwLock::new(HashMap::new())))
+                .collect(),
+            buf1: (0..=DATA_SET_NUM)
+                .map(|_| Arc::new(RwLock::new(HashMap::new())))
                 .collect(),
         }
     }

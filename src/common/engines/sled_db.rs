@@ -22,7 +22,7 @@ use std::{
 
 // the 'prefix search' in sled is just a global scaning,
 // use a relative larger number to sharding the `Tree` pressure.
-const DATA_SET_NUM: usize = 1023;
+const DATA_SET_NUM: usize = 64;
 
 const META_KEY_BRANCH_ID: [u8; 1] = [u8::MAX - 1];
 const META_KEY_VERSION_ID: [u8; 1] = [u8::MAX - 2];
@@ -385,7 +385,7 @@ impl Engine for SledEngine {
         } else {
             drop(buf0);
             self.areas[area_idx]
-                .get(&k)
+                .get(&k[..])
                 .unwrap()
                 .map(|v| v.to_vec().into())
         }
@@ -409,7 +409,7 @@ impl Engine for SledEngine {
         let old_v = match buf0.get(&k[..]).or_else(|| buf1.get(&k[..])) {
             Some(v) => v.clone(),
             None => self.areas[area_idx]
-                .get(&k)
+                .get(&k[..])
                 .unwrap()
                 .map(|v| v.to_vec().into()),
         };
