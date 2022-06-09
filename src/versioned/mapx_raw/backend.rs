@@ -509,45 +509,16 @@ impl MapxRawVs {
     // and should not do any tracing.
     #[inline(always)]
     pub(super) fn version_pop_by_branch(&mut self, branch_id: BranchID) -> Result<()> {
-        if let Some((version_id, _)) = self
+        let mut vers = self
             .branch_to_its_versions
             .get(&branch_id)
-            .c(d!("branch not found"))?
-            .iter()
-            .rev()
-            .next()
-        {
-            self.version_remove_by_branch(version_id, branch_id).c(d!())
+            .c(d!("branch not found"))?;
+        let vers_shadow = vers;
+        if let Some((version_id, _)) = vers_shadow.iter().next_back() {
+            vers.remove(&version_id)
+                .c(d!("version is not on this branch"))
         } else {
             Ok(())
-        }
-    }
-
-    // This function should **NOT** be public,
-    // `write`-like operations should only be applied
-    // on the latest version of every branch,
-    // historical data version should be immutable in the user view.
-    //
-    // 'Write'-like operations on branches and versions are different from operations on data.
-    //
-    // 'Write'-like operations on data require recursive tracing of all parent nodes,
-    // while operations on branches and versions are limited to their own perspective,
-    // and should not do any tracing.
-    fn version_remove_by_branch(
-        &mut self,
-        version_id: VersionID,
-        branch_id: BranchID,
-    ) -> Result<()> {
-        if self
-            .branch_to_its_versions
-            .get(&branch_id)
-            .c(d!("branch not found"))?
-            .remove(&version_id)
-            .is_some()
-        {
-            Ok(())
-        } else {
-            Err(eg!("version is not on this branch"))
         }
     }
 
@@ -967,7 +938,12 @@ impl MapxRawVs {
     // and should not do any tracing.
     #[inline(always)]
     pub(super) fn branch_truncate(&mut self, branch_id: BranchID) -> Result<()> {
-        self.branch_truncate_to(branch_id, VersionID::MIN).c(d!())
+        if let Some(mut vers) = self.branch_to_its_versions.get(&branch_id) {
+            vers.clear();
+            Ok(())
+        } else {
+            Err(eg!("branch not found: {}", branch_id))
+        }
     }
 
     // Remove all changes directly made by versions(bigger than `last_version_id`) of this branch.
@@ -982,11 +958,12 @@ impl MapxRawVs {
         branch_id: BranchID,
         last_version_id: VersionID,
     ) -> Result<()> {
-        if let Some(vers) = self.branch_to_its_versions.get(&branch_id) {
+        if let Some(mut vers) = self.branch_to_its_versions.get(&branch_id) {
+            let vers_shadow = vers;
             // version id must be in descending order
-            for (version_id, _) in vers.range((1 + last_version_id)..).rev() {
-                self.version_remove_by_branch(version_id, branch_id)
-                    .c(d!())?;
+            for (version_id, _) in vers_shadow.range((1 + last_version_id)..).rev() {
+                vers.remove(&version_id)
+                    .c(d!("version is not on this branch"))?;
             }
             Ok(())
         } else {

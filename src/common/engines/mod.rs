@@ -181,11 +181,14 @@ impl Mapx {
 
     #[inline(always)]
     pub(crate) fn clear(&mut self) {
-        VSDB.db.iter(self.area_idx, self.prefix).for_each(|(k, _)| {
-            if VSDB.db.remove(self.area_idx, self.prefix, &k).is_some() {
-                VSDB.db.decrease_instance_len(self.prefix);
-            }
-        });
+        VSDB.db
+            .iter(self.area_idx, self.prefix)
+            .rev()
+            .for_each(|(k, _)| {
+                if VSDB.db.remove(self.area_idx, self.prefix, &k).is_some() {
+                    VSDB.db.decrease_instance_len(self.prefix);
+                }
+            });
     }
 }
 

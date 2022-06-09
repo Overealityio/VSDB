@@ -2,24 +2,34 @@ use crate::common::{
     vsdb_get_base_dir, vsdb_set_base_dir, BranchID, Engine, Pre, PreBytes, RawKey,
     RawValue, VersionID, GB, INITIAL_BRANCH_ID, PREFIX_SIZ, RESERVED_ID_CNT,
 };
-use ahash::AHashMap as HashMap;
+use ahash::{AHashMap as HashMap, AHashSet as HashSet};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use ruc::*;
 use sled::{Batch, Config, Db, IVec, Iter, Mode, Tree};
 use std::{
+    collections::{
+        btree_map::{Entry as BEntry, IntoIter as BIntoIter},
+        BTreeMap,
+    },
     mem,
     ops::{Bound, RangeBounds},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 // the 'prefix search' in sled is just a global scaning,
 // use a relative larger number to sharding the `Tree` pressure.
-const DATA_SET_NUM: usize = 1024;
+const DATA_SET_NUM: usize = 1023;
 
 const META_KEY_BRANCH_ID: [u8; 1] = [u8::MAX - 1];
 const META_KEY_VERSION_ID: [u8; 1] = [u8::MAX - 2];
 const META_KEY_PREFIX_ALLOCATOR: [u8; 1] = [u8::MIN];
+
+static FLUSH_INDICATOR: Lazy<Vec<AtomicU64>> =
+    Lazy::new(|| (0..=DATA_SET_NUM).map(|_| AtomicU64::new(0)).collect());
 
 pub(crate) struct SledEngine {
     meta: Db,
@@ -29,23 +39,6 @@ pub(crate) struct SledEngine {
 }
 
 impl SledEngine {
-    #[inline(always)]
-    fn get_by_extended_key(&self, area_idx: usize, ex_key: &[u8]) -> Option<RawValue> {
-        let buf = self.cache.buf[area_idx].read();
-
-        if let Some(v) = buf[0].get(ex_key).or_else(|| buf[1].get(ex_key)) {
-            let res = v.clone();
-            drop(buf);
-            res
-        } else {
-            drop(buf);
-            self.areas[area_idx]
-                .get(ex_key)
-                .unwrap()
-                .map(|v| v.to_vec().into())
-        }
-    }
-
     fn update_batch(&self, data: CacheMap, area_idx: usize) -> Result<()> {
         alt!(data.is_empty(), return Ok(()));
 
@@ -72,14 +65,14 @@ impl SledEngine {
         static LK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
         let x = LK.lock();
 
-        let data = {
-            let mut buf = self.cache.buf[area_idx].write();
-            let data = mem::take(&mut buf[0]);
-            buf[1] = data.clone();
-            data
-        };
-
-        pnk!(self.update_batch(data, area_idx));
+        if let Some(mut buf) = self.cache.buf[area_idx].try_write() {
+            if 0 == FLUSH_INDICATOR[area_idx].load(Ordering::Relaxed) {
+                let data = mem::take(&mut buf[0]);
+                buf[1] = data.clone();
+                drop(buf);
+                pnk!(self.update_batch(data, area_idx));
+            }
+        }
     }
 
     #[inline(always)]
@@ -234,11 +227,34 @@ impl Engine for SledEngine {
 
     #[inline(always)]
     fn iter(&self, area_idx: usize, meta_prefix: PreBytes) -> SledIter {
-        self.flush_area_cache(area_idx);
+        let (buf_head, buf_middle) = {
+            let buf = self.cache.buf[area_idx].read();
+            FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
+            (buf[0].clone(), buf[1].clone())
+        };
+
+        let (cache_updated, cache_deleted) = buf_middle
+            .into_iter()
+            .chain(buf_head.into_iter())
+            .filter(|(k, _)| k[..PREFIX_SIZ] == meta_prefix[..])
+            .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
+            .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
+                if let Some(v) = v {
+                    acc.0.insert(k, v);
+                } else {
+                    acc.1.insert(k);
+                }
+                acc
+            });
+        let cache_iter = cache_updated.into_iter();
 
         SledIter {
             inner: self.areas[area_idx].scan_prefix(meta_prefix.as_slice()),
             bounds: (Bound::Unbounded, Bound::Unbounded),
+            cache_iter,
+            cache_deleted,
+            candidate_values: BTreeMap::new(),
+            area_idx,
         }
     }
 
@@ -248,8 +264,6 @@ impl Engine for SledEngine {
         meta_prefix: PreBytes,
         bounds: R,
     ) -> SledIter {
-        self.flush_area_cache(area_idx);
-
         let mut b_lo = meta_prefix.to_vec();
         let l = match bounds.start_bound() {
             Bound::Included(lo) => {
@@ -276,9 +290,36 @@ impl Engine for SledEngine {
             Bound::Unbounded => Bound::Unbounded,
         };
 
+        let (buf_head, buf_middle) = {
+            let buf = self.cache.buf[area_idx].read();
+            FLUSH_INDICATOR[area_idx].fetch_add(1, Ordering::Relaxed);
+            (buf[0].clone(), buf[1].clone())
+        };
+
+        let (cache_updated, cache_deleted) = buf_middle
+            .into_iter()
+            .chain(buf_head.into_iter())
+            .filter(|(k, _)| {
+                k[..PREFIX_SIZ] == meta_prefix[..] && bounds.contains(&&k[PREFIX_SIZ..])
+            })
+            .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
+            .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
+                if let Some(v) = v {
+                    acc.0.insert(k, v);
+                } else {
+                    acc.1.insert(k);
+                }
+                acc
+            });
+        let cache_iter = cache_updated.into_iter();
+
         SledIter {
             inner: self.areas[area_idx].scan_prefix(meta_prefix.as_slice()),
             bounds: (l, h),
+            cache_iter,
+            cache_deleted,
+            candidate_values: BTreeMap::new(),
+            area_idx,
         }
     }
 
@@ -291,7 +332,20 @@ impl Engine for SledEngine {
     ) -> Option<RawValue> {
         let mut k = meta_prefix.to_vec();
         k.extend_from_slice(key);
-        self.get_by_extended_key(area_idx, &k)
+
+        let buf = self.cache.buf[area_idx].read();
+
+        if let Some(v) = buf[0].get(&k[..]).or_else(|| buf[1].get(&k[..])) {
+            let res = v.clone();
+            drop(buf);
+            res
+        } else {
+            drop(buf);
+            self.areas[area_idx]
+                .get(&k)
+                .unwrap()
+                .map(|v| v.to_vec().into())
+        }
     }
 
     #[inline(always)]
@@ -306,8 +360,23 @@ impl Engine for SledEngine {
         k.extend_from_slice(key);
         let k = k.into_boxed_slice();
 
-        let old_v = self.get_by_extended_key(area_idx, &k);
-        self.cache.buf[area_idx].write()[0].insert(k, Some(value.to_vec().into()));
+        let mut buf = self.cache.buf[area_idx].write();
+
+        let old_v = match buf[0].get(&k[..]).or_else(|| buf[1].get(&k[..])) {
+            Some(v) => v.clone(),
+            None => self.areas[area_idx]
+                .get(&k)
+                .unwrap()
+                .map(|v| v.to_vec().into()),
+        };
+
+        if let Some(v) = old_v.as_ref() {
+            if value == &v[..] {
+                return old_v;
+            }
+        }
+
+        buf[0].insert(k, Some(value.to_vec().into()));
         old_v
     }
 
@@ -322,8 +391,20 @@ impl Engine for SledEngine {
         k.extend_from_slice(key);
         let k = k.into_boxed_slice();
 
-        let old_v = self.get_by_extended_key(area_idx, &k);
-        self.cache.buf[area_idx].write()[0].insert(k, None);
+        let mut buf = self.cache.buf[area_idx].write();
+
+        let old_v = match buf[0].get(&k[..]).or_else(|| buf[1].get(&k[..])) {
+            Some(v) => v.clone(),
+            None => self.areas[area_idx]
+                .get(&k)
+                .unwrap()
+                .map(|v| v.to_vec().into()),
+        };
+
+        if old_v.is_some() {
+            buf[0].insert(k, None);
+        }
+
         old_v
     }
 
@@ -394,28 +475,97 @@ impl Engine for SledEngine {
 pub struct SledIter {
     inner: Iter,
     bounds: (Bound<IVec>, Bound<IVec>),
+    cache_iter: BIntoIter<RawKey, RawValue>,
+    cache_deleted: HashSet<RawKey>,
+    candidate_values: BTreeMap<RawKey, RawValue>,
+    area_idx: usize,
+}
+
+impl Drop for SledIter {
+    fn drop(&mut self) {
+        FLUSH_INDICATOR[self.area_idx].fetch_sub(1, Ordering::Relaxed);
+    }
 }
 
 impl Iterator for SledIter {
     type Item = (RawKey, RawValue);
+
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((k, v)) = self.inner.next().map(|i| i.unwrap()) {
-            if self.bounds.contains(&k) {
-                return Some((k[PREFIX_SIZ..].to_vec().into(), v.to_vec().into()));
+            match self.bounds.start_bound() {
+                Bound::Included(l) => alt!(&k < l, continue),
+                Bound::Unbounded => {}
+                Bound::Excluded(l) => alt!(&k <= l, continue),
+            }
+
+            match self.bounds.end_bound() {
+                Bound::Excluded(u) => alt!(&k >= u, break),
+                Bound::Included(u) => alt!(&k > u, break),
+                Bound::Unbounded => {}
+            }
+
+            if self.cache_deleted.contains(&k[PREFIX_SIZ..]) {
+                continue;
+            } else if let BEntry::Vacant(e) =
+                self.candidate_values.entry(k[PREFIX_SIZ..].into())
+            {
+                e.insert(v.to_vec().into());
+                break;
+            } else {
+                break;
             }
         }
-        None
+
+        if let Some((k, v)) = self.cache_iter.next() {
+            self.candidate_values.insert(k, v);
+        }
+
+        if let Some(k) = self.candidate_values.keys().next() {
+            let k = k.clone();
+            self.candidate_values.remove_entry(&k)
+        } else {
+            None
+        }
     }
 }
 
 impl DoubleEndedIterator for SledIter {
     fn next_back(&mut self) -> Option<Self::Item> {
         while let Some((k, v)) = self.inner.next_back().map(|i| i.unwrap()) {
-            if self.bounds.contains(&k) {
-                return Some((k[PREFIX_SIZ..].to_vec().into(), v.to_vec().into()));
+            match self.bounds.start_bound() {
+                Bound::Included(l) => alt!(&k < l, break),
+                Bound::Unbounded => {}
+                Bound::Excluded(l) => alt!(&k <= l, break),
+            }
+
+            match self.bounds.end_bound() {
+                Bound::Excluded(u) => alt!(&k >= u, continue),
+                Bound::Included(u) => alt!(&k > u, continue),
+                Bound::Unbounded => {}
+            }
+
+            if self.cache_deleted.contains(&k[PREFIX_SIZ..]) {
+                continue;
+            } else if let BEntry::Vacant(e) =
+                self.candidate_values.entry(k[PREFIX_SIZ..].into())
+            {
+                e.insert(v.to_vec().into());
+                break;
+            } else {
+                break;
             }
         }
-        None
+
+        if let Some((k, v)) = self.cache_iter.next_back() {
+            self.candidate_values.insert(k, v);
+        }
+
+        if let Some(k) = self.candidate_values.keys().next_back() {
+            let k = k.clone();
+            self.candidate_values.remove_entry(&k)
+        } else {
+            None
+        }
     }
 }
 
@@ -439,7 +589,6 @@ type CacheMap = HashMap<RawKey, Option<RawValue>>;
 #[derive(Default)]
 struct Cache {
     // area idx => kv set
-    //
     // NOTE:
     // the last item is the cache of meta data,
     // aka `cache_map[DATA_SET_NUM]`

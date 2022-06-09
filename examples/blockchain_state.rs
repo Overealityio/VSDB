@@ -79,6 +79,7 @@ fn transaction_formal_check_all() {
         if snap1.apply_transaction(&tx).is_err() {
             snap1.version_pop().unwrap();
         }
+        unreachable!(); // all testing transactions are failed
     }
 }
 

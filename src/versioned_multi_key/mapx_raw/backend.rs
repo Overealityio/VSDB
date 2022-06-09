@@ -415,34 +415,17 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) fn version_pop_by_branch(&mut self, branch_id: BranchID) -> Result<()> {
-        if let Some((version_id, _)) = self
+        let mut vers = self
             .branch_to_its_versions
             .get(&branch_id)
-            .c(d!("branch not found"))?
-            .iter()
-            .last()
-        {
-            self.version_remove_by_branch(version_id, branch_id).c(d!())
+            .c(d!("branch not found"))?;
+
+        if let Some((version_id, _)) = vers.iter().next_back() {
+            vers.remove(&version_id)
+                .c(d!("version is not on this branch"))
         } else {
             Ok(())
         }
-    }
-
-    fn version_remove_by_branch(
-        &mut self,
-        version_id: VersionID,
-        branch_id: BranchID,
-    ) -> Result<()> {
-        if self
-            .branch_to_its_versions
-            .get(&branch_id)
-            .c(d!("branch not found"))?
-            .remove(&version_id)
-            .is_none()
-        {
-            return Err(eg!("version is not on this branch"));
-        }
-        Ok(())
     }
 
     #[inline(always)]
@@ -849,7 +832,12 @@ impl MapxRawMkVs {
 
     #[inline(always)]
     pub(super) fn branch_truncate(&mut self, branch_id: BranchID) -> Result<()> {
-        self.branch_truncate_to(branch_id, VersionID::MIN).c(d!())
+        if let Some(mut vers) = self.branch_to_its_versions.get(&branch_id) {
+            vers.clear();
+            Ok(())
+        } else {
+            Err(eg!("branch not found: {}", branch_id))
+        }
     }
 
     pub(super) fn branch_truncate_to(
@@ -857,10 +845,11 @@ impl MapxRawMkVs {
         branch_id: BranchID,
         last_version_id: VersionID,
     ) -> Result<()> {
-        if let Some(vers) = self.branch_to_its_versions.get(&branch_id) {
-            for (version_id, _) in vers.range((1 + last_version_id)..).rev() {
-                self.version_remove_by_branch(version_id, branch_id)
-                    .c(d!())?;
+        if let Some(mut vers) = self.branch_to_its_versions.get(&branch_id) {
+            let vers_shadow = vers;
+            for (version_id, _) in vers_shadow.range((1 + last_version_id)..).rev() {
+                vers.remove(&version_id)
+                    .c(d!("version is not on this branch"))?;
             }
             Ok(())
         } else {

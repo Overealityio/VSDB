@@ -17,8 +17,6 @@ use std::{
     mem::size_of,
     sync::atomic::{AtomicBool, Ordering},
     thread,
-    thread::sleep,
-    time::Duration,
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -79,8 +77,8 @@ static VSDB_CUSTOM_DIR: Lazy<String> = Lazy::new(|| {
     d
 });
 
-// flush in-memory cache to disk every N microseconds(1 / 1_000_000 seconds)
-const CACHE_FLUSH_ITV_MS: u64 = 100; // 1 / 10000 seconds
+// flush in-memory cache to disk every N millisseconds
+const CACHE_FLUSH_ITV_MS: u64 = 1;
 
 #[cfg(any(
     feature = "rocks_engine",
@@ -92,7 +90,7 @@ pub(crate) static VSDB: Lazy<VsDB<engines::RocksDB>> = Lazy::new(|| {
     thread::spawn(|| {
         sleep_ms!(1);
         loop {
-            sleep(Duration::from_micros(CACHE_FLUSH_ITV_MS));
+            sleep_ms!(CACHE_FLUSH_ITV_MS);
             VSDB.db.flush_cache();
         }
     });
@@ -105,7 +103,7 @@ pub(crate) static VSDB: Lazy<VsDB<engines::Sled>> = Lazy::new(|| {
     thread::spawn(|| {
         sleep_ms!(1);
         loop {
-            sleep(Duration::from_micros(CACHE_FLUSH_ITV_MS));
+            sleep_ms!(CACHE_FLUSH_ITV_MS);
             VSDB.db.flush_cache();
         }
     });
