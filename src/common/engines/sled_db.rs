@@ -233,16 +233,18 @@ impl Engine for SledEngine {
             (buf[0].clone(), buf[1].clone())
         };
 
-        let (cache_updated, cache_deleted) = buf_middle
+        let (cache_updated, cache_deleted) = buf_head
             .into_iter()
-            .chain(buf_head.into_iter())
+            .chain(buf_middle.into_iter())
             .filter(|(k, _)| k[..PREFIX_SIZ] == meta_prefix[..])
             .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
             .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
-                if let Some(v) = v {
-                    acc.0.insert(k, v);
-                } else {
-                    acc.1.insert(k);
+                if !acc.0.contains_key(&k) && !acc.1.contains(&k) {
+                    if let Some(v) = v {
+                        acc.0.insert(k, v);
+                    } else {
+                        acc.1.insert(k);
+                    }
                 }
                 acc
             });
@@ -296,18 +298,20 @@ impl Engine for SledEngine {
             (buf[0].clone(), buf[1].clone())
         };
 
-        let (cache_updated, cache_deleted) = buf_middle
+        let (cache_updated, cache_deleted) = buf_head
             .into_iter()
-            .chain(buf_head.into_iter())
+            .chain(buf_middle.into_iter())
             .filter(|(k, _)| {
                 k[..PREFIX_SIZ] == meta_prefix[..] && bounds.contains(&&k[PREFIX_SIZ..])
             })
             .map(|(k, v)| (k[PREFIX_SIZ..].into(), v))
             .fold((BTreeMap::new(), HashSet::new()), |mut acc, (k, v)| {
-                if let Some(v) = v {
-                    acc.0.insert(k, v);
-                } else {
-                    acc.1.insert(k);
+                if !acc.0.contains_key(&k) && !acc.1.contains(&k) {
+                    if let Some(v) = v {
+                        acc.0.insert(k, v);
+                    } else {
+                        acc.1.insert(k);
+                    }
                 }
                 acc
             });
